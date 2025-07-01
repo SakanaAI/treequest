@@ -28,7 +28,7 @@ def generate(parent_state: State | None) -> tuple[State, float]:
     else:
         new_state = f"State after {parent_state}"
 
-    score = evaluate(new_state) # A score for the new state; It should be normalized to the [0, 1] range.
+    score = random.random() # A score for the new state; It should be normalized to the [0, 1] range.
     return new_state, score
 
 # 2. Instantiate the algorithm and a search tree object.
@@ -66,8 +66,9 @@ pip install "treequest[abmcts-m] @ git+https://github.com/SakanaAI/treequest.git
 ### Using an LLM as a Node Generator
 You can use any object as a node state. You only need to define a generating function that returns a `(state, score)` tuple and takes the parent state as an argument:
 ```python
-import treequest as tq
 import dataclasses
+
+import treequest as tq
 
 @dataclasses.dataclass
 class State:
