@@ -1,7 +1,7 @@
 import random
 from typing import Any, Dict, Optional, Tuple
 
-from treequest.algos.ab_mcts_m.algo import ABMCTSM
+from treequest import ABMCTSM
 from treequest.visualization import visualize_tree_graphviz
 
 
