@@ -8,16 +8,20 @@ from math import log, sqrt
 from typing import Dict, List, Literal, Optional, Tuple, Union
 
 from treequest.algos.tree import Node
-from treequest.imports import try_import
 
-with try_import() as _import:
-    import jax
-    import numpy as np
-    import numpyro  # type: ignore
-    import pandas as pd  # type: ignore
-    import pymc as pm  # type: ignore
-    from pymc.sampling.jax import sample_numpyro_nuts  # type: ignore
-    from xarray import DataArray
+
+from treequest.algos.ab_mcts_m._ab_mcts_m_imports import _import
+
+if _import.is_successful():
+    from treequest.algos.ab_mcts_m._ab_mcts_m_imports import (
+        jax,
+        np,
+        numpyro,
+        pd,
+        pm,
+        sample_numpyro_nuts,
+        DataArray,
+    )
 
 
 @dataclass(frozen=True)
