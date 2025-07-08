@@ -11,7 +11,7 @@ with try_import() as _import:
 
 __all__ = [
     "jax",
-    "np", 
+    "np",
     "numpyro",
     "pd",
     "pm",

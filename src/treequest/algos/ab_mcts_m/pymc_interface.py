@@ -13,7 +13,15 @@ from treequest.algos.tree import Node
 from treequest.algos.ab_mcts_m._ab_mcts_m_imports import _import
 
 if _import.is_successful():
-    from treequest.algos.ab_mcts_m._ab_mcts_m_imports import jax, np, numpyro, pd, pm, sample_numpyro_nuts, DataArray
+    from treequest.algos.ab_mcts_m._ab_mcts_m_imports import (
+        jax,
+        np,
+        numpyro,
+        pd,
+        pm,
+        sample_numpyro_nuts,
+        DataArray,
+    )
 
 
 @dataclass(frozen=True)
