@@ -53,13 +53,13 @@ print(f"Best state: {best_state}, Score: {best_node_score}")
 ### uv
 First, install [`uv`](https://github.com/astral-sh/uv?tab=readme-ov-file#installation). Then you can install TreeQuest with the following command:
 ```bash
-uv add "treequest[abmcts-m]" "https://github.com/SakanaAI/treequest.git@main"
+uv add "treequest[abmcts-m]"
 ```
 
 ### pip
 Alternatively, you can use pip to install TreeQuest:
 ```bash
-pip install "treequest[abmcts-m] @ git+https://github.com/SakanaAI/treequest.git"
+pip install "treequest[abmcts-m]"
 ```
 
 ## Usage
