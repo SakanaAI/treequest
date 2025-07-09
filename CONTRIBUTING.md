@@ -14,6 +14,11 @@ cd treequest
 uv sync --all-extras --all-groups
 ```
 
+## Adding pre-commit hook
+```
+uv run pre-commit install
+```
+
 ## Running test
 ```
 uv run pytest tests -n auto
