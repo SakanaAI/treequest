@@ -26,7 +26,18 @@ jobs:
     - name: Set up Python
       run: uv python install
 
-    - name: Install the project
+    - name: Install the project without extras
+      run: uv sync
+
+    - name: Output installed packages without extras
+      run: |
+        uv pip list
+        uv pip check
+
+    - name: Test AB-MCTS-A without extra dependency
+      run: uv run pytest tests/test_ab_mcts_a.py -n auto
+
+    - name: Install all the extras
       run: uv sync --all-extras
 
     - name: Output installed packages
