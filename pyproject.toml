@@ -21,10 +21,20 @@ abmcts-m = [
     "pymc>=5.21.0",
     "xarray>=2025.1.2",
 ]
+mcp-server = [
+    "mcp>=1.0.0",
+    "click>=8.0.0",
+    "anyio>=4.0.0",
+    "starlette>=0.27.0",
+    "uvicorn>=0.23.0",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[project.scripts]
+treequest-mcp-server = "mcp_treequest.__main__:main"
 
 [dependency-groups]
 dev = [
