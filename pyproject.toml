@@ -34,7 +34,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project.scripts]
-treequest-mcp-server = "mcp_treequest.__main__:main"
+treequest-mcp-server = "mcp_treequest.server:main"
 
 [dependency-groups]
 dev = [
