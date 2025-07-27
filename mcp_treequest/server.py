@@ -74,6 +74,8 @@ def main(port: int, transport: str) -> int:
             return await list_sessions_tool(arguments)
         elif name == "delete_session":
             return await delete_session_tool(arguments)
+        elif name == "get_tree_visualization":
+            return await get_tree_visualization_tool(arguments)
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -189,6 +191,41 @@ def main(port: int, transport: str) -> int:
                         "session_id": {
                             "type": "string",
                             "description": "Session ID to delete"
+                        }
+                    }
+                }
+            ),
+            types.Tool(
+                name="get_tree_visualization",
+                title="Get Tree Visualization",
+                description="Generate tree visualization using Graphviz",
+                inputSchema={
+                    "type": "object",
+                    "required": ["session_id"],
+                    "properties": {
+                        "session_id": {
+                            "type": "string",
+                            "description": "Session ID"
+                        },
+                        "format": {
+                            "type": "string",
+                            "enum": ["png", "pdf", "svg", "dot"],
+                            "description": "Output format (default: png)",
+                            "default": "png"
+                        },
+                        "show_scores": {
+                            "type": "boolean",
+                            "description": "Whether to show scores in node labels (default: true)",
+                            "default": True
+                        },
+                        "max_label_length": {
+                            "type": "integer",
+                            "description": "Maximum length for node labels (default: 20)",
+                            "default": 20
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "Optional title for the visualization"
                         }
                     }
                 }
@@ -402,6 +439,66 @@ def main(port: int, transport: str) -> int:
             type="text",
             text=json.dumps(result, indent=2)
         )]
+
+    async def get_tree_visualization_tool(arguments: dict) -> list[types.ContentBlock]:
+        """Generate tree visualization using Graphviz."""
+        session_id = arguments["session_id"]
+        format_type = arguments.get("format", "png")
+        show_scores = arguments.get("show_scores", True)
+        max_label_length = arguments.get("max_label_length", 20)
+        title = arguments.get("title")
+        
+        if session_id not in sessions:
+            return [types.TextContent(
+                type="text",
+                text=f"Error: Session {session_id} not found"
+            )]
+        
+        session = sessions[session_id]
+        
+        try:
+            from treequest.visualization import visualize_tree_graphviz
+            
+            dot = visualize_tree_graphviz(
+                tree=session.state.tree,
+                save_path=None,  # Don't save to file, just return the dot object
+                show_scores=show_scores,
+                max_label_length=max_label_length,
+                title=title,
+                format=format_type
+            )
+            
+            if dot is None:
+                return [types.TextContent(
+                    type="text",
+                    text="Error: Graphviz executable not found. Please install Graphviz to use visualization."
+                )]
+            
+            dot_source = dot.source
+            
+            result = {
+                "session_id": session_id,
+                "format": format_type,
+                "dot_source": dot_source,
+                "node_count": len(session.state.tree.get_nodes()),
+                "visualization_generated": True
+            }
+            
+            return [types.TextContent(
+                type="text",
+                text=json.dumps(result, indent=2)
+            )]
+            
+        except ImportError:
+            return [types.TextContent(
+                type="text",
+                text="Error: Graphviz not available. Install with 'pip install graphviz' to use visualization."
+            )]
+        except Exception as e:
+            return [types.TextContent(
+                type="text",
+                text=f"Error generating visualization: {str(e)}"
+            )]
 
     if transport == "sse":
         from mcp.server.sse import SseServerTransport
