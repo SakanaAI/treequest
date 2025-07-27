@@ -47,6 +47,75 @@ class TreeQuestSession:
 sessions: Dict[str, TreeQuestSession] = {}
 
 
+def _validate_session_exists(session_id: str) -> Optional[str]:
+    """Validate that a session exists and is active."""
+    if not session_id:
+        return "Error: Session ID cannot be empty"
+    
+    if not isinstance(session_id, str):
+        return f"Error: Session ID must be a string, got {type(session_id).__name__}"
+    
+    if session_id not in sessions:
+        return f"Error: Session '{session_id}' not found. Use list_sessions to see active sessions."
+    
+    return None
+
+
+def _validate_algorithm_params(algorithm_name: str, params: Dict[str, Any]) -> Optional[str]:
+    """Validate algorithm parameters are within acceptable ranges."""
+    if "exploration_weight" in params:
+        weight = params["exploration_weight"]
+        if not isinstance(weight, (int, float)):
+            return f"exploration_weight must be a number, got {type(weight).__name__}"
+        if weight < 0:
+            return f"exploration_weight must be non-negative, got {weight}"
+        if weight > 10:
+            return f"exploration_weight is too large ({weight}). Maximum recommended value is 10."
+    
+    if "samples_per_action" in params:
+        samples = params["samples_per_action"]
+        if not isinstance(samples, int):
+            return f"samples_per_action must be an integer, got {type(samples).__name__}"
+        if samples < 1:
+            return f"samples_per_action must be at least 1, got {samples}"
+        if samples > 100:
+            return f"samples_per_action is too large ({samples}). Maximum recommended value is 100."
+    
+    return None
+
+
+def _validate_generate_functions(generate_functions: Dict[str, str]) -> Optional[str]:
+    """Validate generate function inputs."""
+    if not generate_functions:
+        return "At least one generate function must be provided"
+    
+    if not isinstance(generate_functions, dict):
+        return f"generate_functions must be a dictionary, got {type(generate_functions).__name__}"
+    
+    for action_name, code in generate_functions.items():
+        if not isinstance(action_name, str):
+            return f"Action name must be a string, got {type(action_name).__name__}"
+        
+        if not action_name.strip():
+            return "Action names cannot be empty or whitespace"
+        
+        if not isinstance(code, str):
+            return f"Generate function code for action '{action_name}' must be a string, got {type(code).__name__}"
+        
+        if not code.strip():
+            return f"Generate function code for action '{action_name}' cannot be empty"
+        
+        if len(code) > 10000:
+            return f"Generate function code for action '{action_name}' is too long ({len(code)} chars). Maximum allowed is 10000 characters."
+        
+        dangerous_imports = ['os', 'sys', 'subprocess', 'eval', 'exec', 'open', '__import__']
+        for dangerous in dangerous_imports:
+            if dangerous in code:
+                return f"Generate function code for action '{action_name}' contains potentially dangerous operation: {dangerous}"
+    
+    return None
+
+
 @click.command()
 @click.option("--port", default=8000, help="Port to listen on for SSE")
 @click.option(
@@ -237,6 +306,13 @@ def main(port: int, transport: str) -> int:
         algorithm_name = arguments["algorithm"]
         params = arguments.get("params", {})
         
+        validation_error = _validate_algorithm_params(algorithm_name, params)
+        if validation_error:
+            return [types.TextContent(
+                type="text",
+                text=f"Parameter validation error: {validation_error}"
+            )]
+        
         try:
             session = TreeQuestSession(algorithm_name, params)
             sessions[session.session_id] = session
@@ -252,10 +328,15 @@ def main(port: int, transport: str) -> int:
                 type="text",
                 text=json.dumps(result, indent=2)
             )]
+        except ValueError as e:
+            return [types.TextContent(
+                type="text",
+                text=f"Invalid algorithm or parameters: {str(e)}"
+            )]
         except Exception as e:
             return [types.TextContent(
                 type="text",
-                text=f"Error initializing tree: {str(e)}"
+                text=f"Unexpected error initializing tree: {str(e)}"
             )]
 
     async def step_tree_tool(arguments: dict) -> list[types.ContentBlock]:
@@ -263,10 +344,18 @@ def main(port: int, transport: str) -> int:
         session_id = arguments["session_id"]
         generate_functions_code = arguments["generate_functions"]
         
-        if session_id not in sessions:
+        session_error = _validate_session_exists(session_id)
+        if session_error:
             return [types.TextContent(
                 type="text",
-                text=f"Error: Session {session_id} not found"
+                text=session_error
+            )]
+        
+        validation_error = _validate_generate_functions(generate_functions_code)
+        if validation_error:
+            return [types.TextContent(
+                type="text",
+                text=f"Generate function validation error: {validation_error}"
             )]
         
         session = sessions[session_id]
@@ -274,19 +363,39 @@ def main(port: int, transport: str) -> int:
         try:
             generate_fns = {}
             for action_name, code in generate_functions_code.items():
-                exec_globals = {
-                    "Optional": Optional,
-                    "Tuple": Tuple,
-                    "random": __import__("random"),
-                    "math": __import__("math"),
-                }
-                exec(code, exec_globals)
-                generate_fns[action_name] = exec_globals.get("generate_fn")
-                
-                if generate_fns[action_name] is None:
+                try:
+                    exec_globals = {
+                        "Optional": Optional,
+                        "Tuple": Tuple,
+                        "random": __import__("random"),
+                        "math": __import__("math"),
+                        "List": List,
+                    }
+                    exec(code, exec_globals)
+                    generate_fns[action_name] = exec_globals.get("generate_fn")
+                    
+                    if generate_fns[action_name] is None:
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Error: No 'generate_fn' function found in code for action '{action_name}'. "
+                                 f"Make sure your code defines a function named 'generate_fn'."
+                        )]
+                    
+                    if not callable(generate_fns[action_name]):
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Error: 'generate_fn' for action '{action_name}' is not callable."
+                        )]
+                        
+                except SyntaxError as e:
                     return [types.TextContent(
                         type="text",
-                        text=f"Error: No 'generate_fn' function found in code for action '{action_name}'"
+                        text=f"Syntax error in generate function for action '{action_name}': {str(e)}"
+                    )]
+                except Exception as e:
+                    return [types.TextContent(
+                        type="text",
+                        text=f"Error executing generate function code for action '{action_name}': {str(e)}"
                     )]
             
             session.step_algorithm(generate_fns)
@@ -308,10 +417,15 @@ def main(port: int, transport: str) -> int:
                 text=json.dumps(result, indent=2)
             )]
             
+        except RuntimeError as e:
+            return [types.TextContent(
+                type="text",
+                text=f"Tree search runtime error: {str(e)}"
+            )]
         except Exception as e:
             return [types.TextContent(
                 type="text",
-                text=f"Error during step: {str(e)}"
+                text=f"Unexpected error during step: {str(e)}"
             )]
 
     async def get_tree_state_tool(arguments: dict) -> list[types.ContentBlock]:
@@ -362,15 +476,35 @@ def main(port: int, transport: str) -> int:
         session_id = arguments["session_id"]
         k = arguments.get("k", 10)
         
-        if session_id not in sessions:
+        session_error = _validate_session_exists(session_id)
+        if session_error:
             return [types.TextContent(
                 type="text",
-                text=f"Error: Session {session_id} not found"
+                text=session_error
+            )]
+        
+        if not isinstance(k, int) or k <= 0:
+            return [types.TextContent(
+                type="text",
+                text=f"Error: Parameter 'k' must be a positive integer, got {k}"
+            )]
+        
+        if k > 1000:
+            return [types.TextContent(
+                type="text",
+                text=f"Error: Parameter 'k' is too large ({k}). Maximum allowed value is 1000."
             )]
         
         session = sessions[session_id]
         
         try:
+            nodes = session.state.tree.get_nodes()
+            if len(nodes) <= 1:  # Only root node
+                return [types.TextContent(
+                    type="text",
+                    text="Warning: Tree has no non-root nodes to rank. Perform tree steps first."
+                )]
+            
             top_results = tq.top_k(session.state.tree, session.algorithm, k=k)
             
             serializable_results = []
@@ -383,6 +517,7 @@ def main(port: int, transport: str) -> int:
             result = {
                 "session_id": session_id,
                 "k": k,
+                "actual_results": len(serializable_results),
                 "top_nodes": serializable_results
             }
             
