@@ -5,15 +5,15 @@ if _ab_mcts_m_import.is_successful():
 else:
     # Create a placeholder that raises an informative error when accessed
     class _ABMCTSMPlaceholder:
-        def __getattr__(self, name):
+        def __getattr__(self, name):  # type: ignore
             _ab_mcts_m_import.check()
             raise ImportError("ABMCTSM import failed.")
 
-        def __call__(self, *args, **kwargs):
+        def __call__(self, *args, **kwargs):  # type: ignore
             _ab_mcts_m_import.check()
             raise ImportError("ABMCTSM import failed.")
 
-    ABMCTSM = _ABMCTSMPlaceholder()
+    ABMCTSM = _ABMCTSMPlaceholder()  # type: ignore
 
 from .algos.ab_mcts_a.algo import ABMCTSA
 from .algos.base import Algorithm
