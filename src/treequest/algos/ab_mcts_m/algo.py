@@ -1,4 +1,5 @@
 import copy
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
@@ -62,7 +63,7 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         model_selection_strategy: str = "multiarm_bandit_thompson",
         min_subtree_size_for_pruning: int = 4,
         same_score_proportion_threshold: float = 0.75,
-        max_process_workers: int = 8,
+        max_process_workers: int = os.cpu_count() or 1,
         is_worker: bool = False,
     ):
         """
