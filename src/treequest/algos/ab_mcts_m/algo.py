@@ -10,6 +10,7 @@ from treequest.algos.ab_mcts_m.pymc_interface import (
 )
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
+from treequest.trial import Trial, TrialId, TrialStore
 from treequest.types import GenerateFnType, StateScoreType
 
 # Type variable for state
@@ -25,6 +26,7 @@ class ABMCTSMState(Generic[StateT]):
     all_observations: Dict[int, Observation] = field(
         default_factory=dict[int, Observation]
     )
+    trial_store: TrialStore = field(default_factory=TrialStore)
 
 
 class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
@@ -91,44 +93,50 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         inplace: bool = False,
     ) -> ABMCTSMState[StateT]:
         """
-        Perform one step of AB-MCTS-M algorithm and generate a one node.
-
-        Args:
-            state: Current algorithm state
-            generate_fn: Mapping of action names to generation functions
-
-        Returns:
-            Updated algorithm state
+        Perform one step of the AB-MCTS-M algorithm and generate a new node.
         """
         if not inplace:
             state = copy.deepcopy(state)
 
+        actions = list(generate_fn.keys())
+        state, trial = self.ask(state, actions)
+
+        action = trial.action
+        node = state.tree.get_node(trial.node_to_expand)
+        result = generate_fn[action](node.state)
+
+        self.tell(state, trial.trial_id, result)
+        return state
+
+    def get_expand_node_and_action(
+        self,
+        state: ABMCTSMState[StateT],
+        actions: list[str],
+    ) -> tuple[Node[StateT], str]:
         # If the tree is empty (only root), expand the root
         if not state.tree.root.children:
-            self._expand_node(state, state.tree.root, generate_fn)
-            return state
+            return state.tree.root, self._get_generation_action(
+                state, state.tree.root, actions
+            )
 
         # Run one simulation step
         node = state.tree.root
 
-        # Selection phase: traverse tree until we reach a leaf node
+        # Selection phase: traverse tree until we reach a leaf node or need to create a new node
         while node.children:
-            node, action = self._select_child(state, node, generate_fn)
+            node, action = self._select_child(state, node, actions)
 
-            # If action is not None, it means we've generated a new node
+            # If action is not None, we will generate a new node from `node``
             if action is not None:
-                return state
-
-        # Expansion phase: expand leaf node
-        self._expand_node(state, node, generate_fn)
-
-        return state
+                return node, action
+        action = self._get_generation_action(state, node, actions)
+        return node, action
 
     def _select_child(
         self,
         state: ABMCTSMState[StateT],
         node: Node[StateT],
-        generate_fn: Mapping[str, GenerateFnType[StateT]],
+        actions: list[str],
     ) -> Tuple[Node[StateT], Optional[str]]:
         """
         Select a child node using PyMC interface.
@@ -145,8 +153,6 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             node, state.all_observations
         )
 
-        actions = list(generate_fn.keys())
-
         child_identifier = self.pymc_interface.run(
             observations,
             actions=actions,
@@ -156,38 +162,19 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
 
         # If we got a string, we need to generate a new node
         if isinstance(child_identifier, str):
-            new_node = self._generate_new_child(
-                state, node, generate_fn, child_identifier
-            )
-            return new_node, child_identifier
+            return node, child_identifier
         else:
             # Otherwise, we return the existing child
             return node.children[child_identifier], None
 
-    def _expand_node(
-        self,
-        state: ABMCTSMState[StateT],
-        node: Node[StateT],
-        generate_fn: Mapping[str, GenerateFnType[StateT]],
-    ) -> Tuple[Node[StateT], str]:
-        """
-        Expand a leaf node by generating a new child.
-
-        Args:
-            state: Current algorithm state
-            node: Node to expand
-            generate_fn: Mapping of action names to generation functions
-
-        Returns:
-            Tuple of (new node, model name used)
-        """
+    def _get_generation_action(
+        self, state: ABMCTSMState[StateT], node: Node[StateT], actions: list[str]
+    ) -> str:
         observations = Observation.collect_all_observations_of_descendant(
             node, state.all_observations
         )
 
-        actions = list(generate_fn.keys())
-
-        node_identifier = self.pymc_interface.run(
+        selected_action = self.pymc_interface.run(
             observations,
             actions=actions,
             node=node,
@@ -195,45 +182,11 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         )
 
         # Ensure we get a string model name, not an index
-        if not isinstance(node_identifier, str):
+        if not isinstance(selected_action, str):
             raise ValueError(
-                f"Internal Error: Expected model name string but got index {node_identifier}"
+                f"Internal Error: Expected model name string but got index {selected_action}"
             )
-
-        new_node = self._generate_new_child(state, node, generate_fn, node_identifier)
-        return new_node, node_identifier
-
-    def _generate_new_child(
-        self,
-        state: ABMCTSMState[StateT],
-        node: Node[StateT],
-        generate_fn: Mapping[str, GenerateFnType[StateT]],
-        action: str,
-    ) -> Node[StateT]:
-        """
-        Generate a new child node using the specified model.
-
-        Args:
-            state: Current algorithm state
-            node: Parent node
-            generate_fn: Mapping of action names to generation functions
-            action: Name of action to use for generation
-
-        Returns:
-            Newly created node
-        """
-        # Generate new state and score using the selected model
-        new_state, new_score = generate_fn[action](node.state)
-
-        # Add new node to the tree
-        new_node = state.tree.add_node((new_state, new_score), node)
-
-        # Record observation
-        state.all_observations[new_node.expand_idx] = Observation(
-            reward=new_score, action=action, node_expand_idx=new_node.expand_idx
-        )
-
-        return new_node
+        return selected_action
 
     def get_state_score_pairs(
         self, state: ABMCTSMState[StateT]
@@ -248,3 +201,41 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             List of (state, score) pairs
         """
         return state.tree.get_state_score_pairs()
+
+    def ask_batch(
+        self, state: ABMCTSMState[StateT], batch_size: int, actions: list[str]
+    ) -> tuple[ABMCTSMState[StateT], list[Trial]]:
+        trials: list[Trial] = []
+        for _ in range(batch_size):
+            node, action = self.get_expand_node_and_action(state, actions)
+            trials.append(state.trial_store.create_trial(node.expand_idx, action))
+
+        return state, trials
+
+    def tell(
+        self,
+        state: ABMCTSMState[StateT],
+        trial_id: TrialId,
+        result: tuple[StateT, float],
+    ) -> ABMCTSMState[StateT]:
+        _new_state, new_score = result
+
+        finished_trial = state.trial_store.get_finished_trial(trial_id, new_score)
+        if (
+            finished_trial is None
+        ):  # Trial is no longer valid, so we do not reflect the result to state
+            return state
+
+        parent_node = state.tree.get_node(finished_trial.node_to_expand)
+
+        # Add new node to the tree
+        new_node = state.tree.add_node(result, parent_node)
+
+        # Record observation
+        state.all_observations[new_node.expand_idx] = Observation(
+            reward=new_score,
+            action=finished_trial.action,
+            node_expand_idx=new_node.expand_idx,
+        )
+
+        return state

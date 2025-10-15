@@ -181,14 +181,7 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
         inplace: bool = False,
     ) -> ABMCTSAAlgoState[StateT]:
         """
-        Perform one step of the Thompson Sampling MCTS algorithm.
-
-        Args:
-            state: Current algorithm state
-            generate_fn: Mapping of action names to generation functions
-
-        Returns:
-            Updated algorithm state
+        Perform one step of the AB-MCTS-A algorithm and generate a new node.
         """
         if not inplace:
             state = copy.deepcopy(state)
@@ -203,7 +196,7 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
         self.tell(state, trial.trial_id, result)
         return state
 
-    def get_expand_node_and_action(
+    def _get_expand_node_and_action(
         self,
         state: ABMCTSAAlgoState[StateT],
         actions: list[str],
@@ -354,7 +347,7 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
 
         trials: list[Trial] = []
         for _ in range(batch_size):
-            node, action = self.get_expand_node_and_action(state, actions)
+            node, action = self._get_expand_node_and_action(state, actions)
             trials.append(state.trial_store.create_trial(node.expand_idx, action))
 
         return state, trials
