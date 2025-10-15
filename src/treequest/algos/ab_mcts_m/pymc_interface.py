@@ -1,3 +1,4 @@
+import os
 import random
 
 # Import all dependencies at the top of the file
@@ -149,7 +150,8 @@ class PyMCInterface:
         pruning_config: Optional[PruningConfig] = None,
         reward_average_priors: Optional[float | Dict[str, float]] = None,
         model_selection_strategy: str = "multiarm_bandit_thompson",
-        max_cpu_devices: int = 32,  # maximum number of cpu devices used by pymc. max_cpu_devices=32 means we can run maximum of 32 chains concurrently: https://discourse.pymc.io/t/pymc3jax-jax-sampler-slow-on-mac-os/5866/2
+        # maximum number of cpu devices used by pymc. For example, max_cpu_devices=32 means we can run maximum of 32 chains concurrently: https://discourse.pymc.io/t/pymc3jax-jax-sampler-slow-on-mac-os/5866/2
+        max_cpu_devices: int = os.cpu_count() or 1,
     ):
         _import.check()
 
