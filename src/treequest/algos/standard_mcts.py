@@ -2,11 +2,11 @@ import copy
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from math import exp, log, sqrt
-from random import shuffle
-from typing import Dict, Generic, List, Optional, Tuple, TypeVar
+from typing import Dict, Generic, List, Optional, TypeVar
 
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
+from treequest.trial import Trial, TrialId, TrialStoreWithNodeQueue
 from treequest.types import GenerateFnType, StateScoreType
 
 # Type variable for state
@@ -35,10 +35,13 @@ class MCTSState(Generic[StateT]):
     """State for Monte Carlo Tree Search algorithm."""
 
     tree: Tree[StateT]
-    visit_counts: Dict[int, int] = field(default_factory=dict)
-    value_sums: Dict[int, float] = field(default_factory=dict)
-    priors: Dict[int, float] = field(default_factory=dict)
-    next_nodes: List[Tuple[Node[StateT], str]] = field(default_factory=list)
+    visit_counts: Dict[int, int] = field(default_factory=dict[int, int])
+    value_sums: Dict[int, float] = field(default_factory=dict[int, float])
+    priors: Dict[int, float] = field(default_factory=dict[int, float])
+
+    trial_store: TrialStoreWithNodeQueue[StateT] = field(
+        default_factory=TrialStoreWithNodeQueue[StateT]
+    )
 
 
 class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
@@ -64,10 +67,10 @@ class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
 
     def step(
         self,
-        state: MCTSState,
+        state: MCTSState[StateT],
         generate_fn: Mapping[str, GenerateFnType[StateT]],
         inplace: bool = False,
-    ) -> MCTSState:
+    ) -> MCTSState[StateT]:
         """
         Perform one step of the MCTS algorithm.
 
@@ -81,32 +84,51 @@ class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
         if not inplace:
             state = copy.deepcopy(state)
 
-        # If no nodes are queued for expansion, select nodes to expand
-        if not state.next_nodes:
+        state, trial = self.ask(state, actions=list(generate_fn.keys()))
+
+        action = trial.action
+        node = state.tree.get_node(trial.node_to_expand)
+
+        # Simulation: Generate a new state using the selected action
+        result = generate_fn[action](node.state)
+
+        state = self.tell(state, trial.trial_id, result)
+
+        return state
+
+    def ask_batch(
+        self, state: MCTSState[StateT], batch_size: int, actions: list[str]
+    ) -> tuple[MCTSState[StateT], list[Trial]]:
+        # If queue is empty, select next node and list expansion candidates
+        if state.trial_store.is_queue_empty():
             # Selection: Find the most promising node to expand
             node = self._select(state)
 
-            # Create pairs of (node, action) for all actions
-            pairs_to_add = []
-            actions = list(generate_fn.keys())
-
+            nodes_and_actions = []
             # For each sample, add all actions
             for _ in range(self.samples_per_action):
                 for action in actions:
-                    pairs_to_add.append((node, action))
+                    nodes_and_actions.append((node, action))
 
-            # Shuffle the pairs to add randomness to expansion order
-            shuffle(pairs_to_add)
-            state.next_nodes.extend(pairs_to_add)
+            state.trial_store.fill_nodes_queue(nodes_and_actions)
 
-        # Get the next node and action to expand
-        node, action = state.next_nodes.pop(0)
+        trials = state.trial_store.get_batch_from_queue(batch_size)
+        return state, trials
 
-        # Simulation: Generate a new state using the selected action
-        new_state, new_score = generate_fn[action](node.state)
+    def tell(
+        self, state: MCTSState[StateT], trial_id: TrialId, result: tuple[StateT, float]
+    ) -> MCTSState[StateT]:
+        _new_state, new_score = result
 
+        finished_trial = state.trial_store.get_finished_trial(trial_id, new_score)
+        if (
+            finished_trial is None
+        ):  # Trial is no longer valid, so we do not reflect the result to state
+            return state
+
+        parent_node = state.tree.get_node(finished_trial.node_to_expand)
         # Add the new node to the tree
-        new_node = state.tree.add_node((new_state, new_score), node)
+        new_node = state.tree.add_node(result, parent_node)
 
         # Update statistics for the new node
         node_id = new_node.expand_idx
@@ -121,9 +143,12 @@ class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
         if parent and len(parent.children) > 1:
             self._update_priors(state, parent)
 
+        state.trial_store.invalidate_trials_if_finished(
+            finished_trial.action, parent_node
+        )
         return state
 
-    def _update_priors(self, state: MCTSState, parent: Node) -> None:
+    def _update_priors(self, state: MCTSState[StateT], parent: Node[StateT]) -> None:
         """
         Update prior probabilities for all children of a node using softmax.
 
@@ -138,7 +163,7 @@ class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
         for child, prior in zip(children, priors):
             state.priors[child.expand_idx] = prior
 
-    def _select(self, state: MCTSState) -> Node:
+    def _select(self, state: MCTSState[StateT]) -> Node[StateT]:
         """
         Select a node to expand using UCT.
 
@@ -167,7 +192,9 @@ class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
 
         return node
 
-    def _uct_score(self, state: MCTSState, node: Node, parent: Node) -> float:
+    def _uct_score(
+        self, state: MCTSState[StateT], node: Node[StateT], parent: Node[StateT]
+    ) -> float:
         """
         Calculate the UCT score for a node.
 
@@ -201,7 +228,9 @@ class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
 
         return exploitation + exploration
 
-    def _backpropagate(self, state: MCTSState, node: Node, score: float) -> None:
+    def _backpropagate(
+        self, state: MCTSState[StateT], node: Node[StateT], score: float
+    ) -> None:
         """
         Update statistics for all nodes in the path from node to root.
 
@@ -210,24 +239,26 @@ class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
             node: Leaf node to start backpropagation from
             score: Score to backpropagate
         """
-        current: Optional[Node] = node
+        current: Optional[Node[StateT]] = node
         while current is not None:
             node_id = current.expand_idx
             state.visit_counts[node_id] = state.visit_counts.get(node_id, 0) + 1
             state.value_sums[node_id] = state.value_sums.get(node_id, 0) + score
             current = current.parent
 
-    def init_tree(self) -> MCTSState:
+    def init_tree(self) -> MCTSState[StateT]:
         """
         Initialize the algorithm state with an empty tree.
 
         Returns:
             Initial algorithm state
         """
-        tree: Tree = Tree.with_root_node()
+        tree: Tree[StateT] = Tree.with_root_node()
         return MCTSState(tree=tree)
 
-    def get_state_score_pairs(self, state: MCTSState) -> List[StateScoreType[StateT]]:
+    def get_state_score_pairs(
+        self, state: MCTSState[StateT]
+    ) -> List[StateScoreType[StateT]]:
         """
         Get all the state-score pairs from the tree.
 

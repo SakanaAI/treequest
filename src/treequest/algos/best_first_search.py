@@ -7,6 +7,7 @@ from typing import Generic, List, Tuple, TypeVar
 
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
+from treequest.trial import Trial, TrialId, TrialStoreWithNodeQueue
 from treequest.types import GenerateFnType, StateScoreType
 
 # Type variable for state
@@ -39,8 +40,13 @@ class BFSState(Generic[StateT]):
     """State for Best First Search algorithm."""
 
     tree: Tree[StateT]
-    next_nodes: List[Tuple[Node[StateT], str]] = dataclasses.field(default_factory=list)
-    leaves: List[BFSHeapItem[StateT]] = dataclasses.field(default_factory=list)
+    leaves: List[BFSHeapItem[StateT]] = dataclasses.field(
+        default_factory=list[BFSHeapItem[StateT]]
+    )
+
+    trial_store: TrialStoreWithNodeQueue[StateT] = dataclasses.field(
+        default_factory=TrialStoreWithNodeQueue[StateT]
+    )
 
 
 class BestFirstSearchAlgo(Algorithm[StateT, BFSState[StateT]]):
@@ -73,10 +79,10 @@ class BestFirstSearchAlgo(Algorithm[StateT, BFSState[StateT]]):
 
     def step(
         self,
-        state: BFSState,
+        state: BFSState[StateT],
         generate_fn: Mapping[str, GenerateFnType[StateT]],
         inplace: bool = False,
-    ) -> BFSState:
+    ) -> BFSState[StateT]:
         """
         Generate one additional node and add that to a given state.
 
@@ -94,46 +100,34 @@ class BestFirstSearchAlgo(Algorithm[StateT, BFSState[StateT]]):
         if not inplace:
             state = copy.deepcopy(state)
 
-        # If no nodes are queued for expansion, select a node to expand
-        if not state.next_nodes:
-            if not state.leaves:
-                # If no leaves exist, use the root node
-                parent = state.tree.root
-            else:
-                # Otherwise, pop the highest priority node from the heap
-                parent = heappop(state.leaves).node
+        actions = list(generate_fn.keys())
 
-            # Queue up nodes for expansion
-            # For each selected node, we generate num_samples * len(actions) new nodes
-            state.next_nodes = [
-                (parent, action)
-                for _ in range(self.num_samples)
-                for action in generate_fn
-            ]
+        state, trial = self.ask(state, actions)
 
         # Get the next node to expand
-        node, action = state.next_nodes.pop(0)
+        action = trial.action
+        node = state.tree.get_node(trial.node_to_expand)
 
         # Generate a new state and add it to the tree
-        new_state, new_score = generate_fn[action](node.state)
-        new_node = state.tree.add_node((new_state, new_score), node)
+        result = generate_fn[action](node.state)
 
-        # Add the new node to the priority queue
-        heappush(state.leaves, BFSHeapItem(node=new_node, score=new_score))
+        state = self.tell(state, trial.trial_id, result)
 
         return state
 
-    def init_tree(self) -> BFSState:
+    def init_tree(self) -> BFSState[StateT]:
         """
         Initialize the algorithm state with an empty tree.
 
         Returns:
             Initial algorithm state
         """
-        tree: Tree = Tree.with_root_node()
+        tree: Tree[StateT] = Tree.with_root_node()
         return BFSState(tree)
 
-    def get_state_score_pairs(self, state: BFSState) -> List[StateScoreType[StateT]]:
+    def get_state_score_pairs(
+        self, state: BFSState[StateT]
+    ) -> List[StateScoreType[StateT]]:
         """
         Get all the state-score pairs from the tree, excluding the root node.
 
@@ -147,3 +141,60 @@ class BestFirstSearchAlgo(Algorithm[StateT, BFSState[StateT]]):
             List of (state, score) pairs for all non-root nodes
         """
         return state.tree.get_state_score_pairs()
+
+    def ask_batch(
+        self, state: BFSState[StateT], batch_size: int, actions: list[str]
+    ) -> tuple[BFSState[StateT], list[Trial]]:
+        """
+        Get next nodes and actions to expand.
+        To reflect the stateless design of the Algorithm class, it returns AlgoState as well.
+        """
+        # If queue is empty, select next node and list expansion candidates
+        if state.trial_store.is_queue_empty():
+            if not state.leaves:
+                # If no leaves exist, use the root node
+                parent = state.tree.root
+            else:
+                # Otherwise, pop the highest priority node from the heap
+                parent = heappop(state.leaves).node
+
+            # Queue up nodes for expansion
+            # For each selected node, we generate num_samples * len(actions) new nodes
+            nodes_and_actions = []
+            for action in actions:
+                for _ in range(self.num_samples):
+                    nodes_and_actions.append((parent, action))
+
+            state.trial_store.fill_nodes_queue(nodes_and_actions)
+
+        trials = state.trial_store.get_batch_from_queue(batch_size)
+        return state, trials
+
+    def tell(
+        self,
+        state: BFSState[StateT],
+        trial_id: TrialId,
+        result: tuple[StateT, float],
+    ) -> BFSState[StateT]:
+        """
+        Reflect generate_fn result to an AlgoState object.
+        """
+        _new_state, new_score = result
+
+        finished_trial = state.trial_store.get_finished_trial(trial_id, new_score)
+        if (
+            finished_trial is None
+        ):  # Trial is no longer valid, so we do not reflect the result to state
+            return state
+
+        parent_node = state.tree.get_node(finished_trial.node_to_expand)
+
+        new_node = state.tree.add_node(result, parent_node)
+
+        # Add the new node to the priority queue
+        heappush(state.leaves, BFSHeapItem(node=new_node, score=new_score))
+
+        state.trial_store.invalidate_trials_if_finished(
+            finished_trial.action, parent_node
+        )
+        return state

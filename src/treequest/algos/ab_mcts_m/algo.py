@@ -22,7 +22,9 @@ class ABMCTSMState(Generic[StateT]):
 
     tree: Tree[StateT]
     # Dictionary mapping node expand_idx to observation data
-    all_observations: Dict[int, Observation] = field(default_factory=dict)
+    all_observations: Dict[int, Observation] = field(
+        default_factory=dict[int, Observation]
+    )
 
 
 class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
@@ -71,23 +73,23 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             model_selection_strategy=self.model_selection_strategy,
         )
 
-    def init_tree(self) -> ABMCTSMState:
+    def init_tree(self) -> ABMCTSMState[StateT]:
         """
         Initialize the algorithm state with an empty tree.
 
         Returns:
             Initial algorithm state
         """
-        tree: Tree = Tree.with_root_node()
+        tree: Tree[StateT] = Tree.with_root_node()
 
         return ABMCTSMState(tree=tree)
 
     def step(
         self,
-        state: ABMCTSMState,
+        state: ABMCTSMState[StateT],
         generate_fn: Mapping[str, GenerateFnType[StateT]],
         inplace: bool = False,
-    ) -> ABMCTSMState:
+    ) -> ABMCTSMState[StateT]:
         """
         Perform one step of AB-MCTS-M algorithm and generate a one node.
 
@@ -124,10 +126,10 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
 
     def _select_child(
         self,
-        state: ABMCTSMState,
-        node: Node,
+        state: ABMCTSMState[StateT],
+        node: Node[StateT],
         generate_fn: Mapping[str, GenerateFnType[StateT]],
-    ) -> Tuple[Node, Optional[str]]:
+    ) -> Tuple[Node[StateT], Optional[str]]:
         """
         Select a child node using PyMC interface.
 
@@ -164,10 +166,10 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
 
     def _expand_node(
         self,
-        state: ABMCTSMState,
-        node: Node,
+        state: ABMCTSMState[StateT],
+        node: Node[StateT],
         generate_fn: Mapping[str, GenerateFnType[StateT]],
-    ) -> Tuple[Node, str]:
+    ) -> Tuple[Node[StateT], str]:
         """
         Expand a leaf node by generating a new child.
 
@@ -203,11 +205,11 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
 
     def _generate_new_child(
         self,
-        state: ABMCTSMState,
-        node: Node,
+        state: ABMCTSMState[StateT],
+        node: Node[StateT],
         generate_fn: Mapping[str, GenerateFnType[StateT]],
         action: str,
-    ) -> Node:
+    ) -> Node[StateT]:
         """
         Generate a new child node using the specified model.
 
@@ -234,7 +236,7 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         return new_node
 
     def get_state_score_pairs(
-        self, state: ABMCTSMState
+        self, state: ABMCTSMState[StateT]
     ) -> List[StateScoreType[StateT]]:
         """
         Get all the state-score pairs from the tree.

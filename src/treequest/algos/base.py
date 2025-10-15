@@ -2,6 +2,7 @@ import abc
 from collections.abc import Mapping
 from typing import Generic, List, TypeVar
 
+from treequest.trial import Trial, TrialId
 from treequest.types import GenerateFnType, StateScoreType
 
 # Type variables for node state and algorithm state
@@ -44,3 +45,29 @@ class Algorithm(Generic[NodeStateT, AlgoStateT], abc.ABC):
         Get all the state-score pairs of the tree.
         """
         raise NotImplementedError()
+
+    @abc.abstractmethod
+    def ask_batch(
+        self, state: AlgoStateT, batch_size: int, actions: list[str]
+    ) -> tuple[AlgoStateT, list[Trial]]:
+        """
+        Get next nodes and actions to expand.
+        To reflect the stateless design of the Algorithm class, it returns AlgoState as well.
+        """
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def tell(
+        self, state: AlgoStateT, trial_id: TrialId, result: tuple[NodeStateT, float]
+    ) -> AlgoStateT:
+        """
+        Reflect generate_fn result to an AlgoState object.
+        """
+        raise NotImplementedError()
+
+    def ask(self, state: AlgoStateT, actions: list[str]) -> tuple[AlgoStateT, Trial]:
+        """
+        Get next node and action to expand.
+        """
+        state, trial = self.ask_batch(state, batch_size=1, actions=actions)
+        return state, trial[0]

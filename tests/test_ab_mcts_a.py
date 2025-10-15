@@ -1,8 +1,9 @@
 import random
 from typing import Optional, Tuple
 
-from treequest.algos.ab_mcts_a.algo import ABMCTSA
+from treequest.algos.ab_mcts_a.algo import ABMCTSA, ABMCTSAAlgoState
 from treequest.algos.ab_mcts_a.prob_state import PriorConfig
+from treequest.trial import Trial
 
 
 def test_basic_initialization():
@@ -74,56 +75,22 @@ def test_thompson_sampling_algo_with_mock():
 
     # Create a custom version of ABMCTSA
     class MockABMCTSA(ABMCTSA):
-        def _select_child(
-            self,
-            state,
-            node,
-            generate_fn,
-        ):
-            """
-            Simplified selection that always creates a new node
-            """
-            # Get or create thompson state for this node
-            thompson_state = state.thompson_states.get_or_create(
-                node,
-                list(generate_fn.keys()),
-            )
+        def ask_batch(
+            self, state: ABMCTSAAlgoState, batch_size: int, actions: list[str]
+        ) -> tuple[ABMCTSAAlgoState, list[Trial]]:
+            # initialize all_rewards_store
+            if len(state.all_rewards_store) == 0:
+                for a in actions:
+                    state.all_rewards_store[a] = []
 
-            # Ask for next node or action using Thompson Sampling
-            selection = thompson_state.select_next(state.all_rewards_store)
+            trials: list[Trial] = []
+            for _ in range(batch_size):
+                node, _action = self.get_expand_node_and_action(state, actions)
+                trials.append(
+                    state.trial_store.create_trial(node.expand_idx, "action_a")
+                )
 
-            # If string returned, we need to generate a new node with that action
-            if isinstance(selection, str):
-                # We always select action_a
-                selection = "action_a"
-                new_node = self._generate_new_child(state, node, generate_fn, selection)
-                return new_node, selection
-            else:
-                # Otherwise, we return the existing child with that index
-                if selection >= len(node.children):
-                    raise RuntimeError(
-                        f"Something went wrong in ABMCTSA algorithm: selected index {selection} is out of bounds."
-                    )
-                return node.children[selection], None
-
-        def _expand_node(self, state, node, generate_fn):
-            """
-            Override to always use action_a for expansion.
-            """
-            # Create thompson state for this node if it doesn't exist
-            state.thompson_states.get_or_create(
-                node,
-                list(generate_fn.keys()),
-                prior_config=self.prior_config,
-                reward_average_priors=self.reward_average_priors,
-                model_selection_strategy=self.model_selection_strategy,
-            )
-
-            # Always use action_a for generating child
-            action = "action_a"
-
-            new_node = self._generate_new_child(state, node, generate_fn, action)
-            return new_node, action
+            return state, trials
 
     # Create the mock algorithm
     mock_algo = MockABMCTSA()

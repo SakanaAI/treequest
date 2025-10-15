@@ -3,10 +3,11 @@ import dataclasses
 from collections.abc import Mapping
 from dataclasses import dataclass
 from math import log, sqrt
-from typing import Dict, Generic, List, Tuple, TypeVar
+from typing import Generic, List, TypeVar
 
 from treequest.algos.base import Algorithm
-from treequest.algos.tree import Node, Tree
+from treequest.algos.tree import Tree
+from treequest.trial import Trial, TrialId, TrialStore
 from treequest.types import GenerateFnType, StateScoreType
 
 # Type variable for state
@@ -18,8 +19,10 @@ class UCBState(Generic[StateT]):
     """State for Multi-Armed Bandit UCB algorithm."""
 
     tree: Tree[StateT]
-    scores_by_action: Dict[str, List[float]] = dataclasses.field(default_factory=dict)
-    next_nodes: List[Tuple[Node[StateT], str]] = dataclasses.field(default_factory=list)
+    scores_by_action: dict[str, List[float]] = dataclasses.field(
+        default_factory=dict[str, list[float]]
+    )
+    trial_store: TrialStore = dataclasses.field(default_factory=TrialStore)
 
 
 class MultiArmedBanditUCBAlgo(Algorithm[StateT, UCBState[StateT]]):
@@ -40,10 +43,10 @@ class MultiArmedBanditUCBAlgo(Algorithm[StateT, UCBState[StateT]]):
 
     def step(
         self,
-        state: UCBState,
+        state: UCBState[StateT],
         generate_fn: Mapping[str, GenerateFnType[StateT]],
         inplace: bool = False,
-    ) -> UCBState:
+    ) -> UCBState[StateT]:
         """
         Generate one additional node and add that to a given state.
 
@@ -57,31 +60,18 @@ class MultiArmedBanditUCBAlgo(Algorithm[StateT, UCBState[StateT]]):
         if not inplace:
             state = copy.deepcopy(state)
 
-        # Initialize scores for actions if not already done
-        for action in generate_fn:
-            if action not in state.scores_by_action:
-                state.scores_by_action[action] = []
+        state, trial = self.ask(state, list(generate_fn.keys()))
 
-        # Select the next action using UCB
-        action = self._select_action(state, list(generate_fn.keys()))
-
-        # Use the root node if the tree is empty
-        if not state.tree.root.children:
-            parent = state.tree.root
-        else:
-            # In this simple version, we always expand from the root
-            parent = state.tree.root
+        action = trial.action
+        parent = state.tree.get_node(trial.node_to_expand)
 
         # Generate a new state and add it to the tree
-        new_state, new_score = generate_fn[action](parent.state)
-        state.tree.add_node((new_state, new_score), parent)
+        result = generate_fn[action](parent.state)
 
-        # Update scores for the selected action
-        state.scores_by_action[action].append(new_score)
-
+        state = self.tell(state, trial.trial_id, result)
         return state
 
-    def _select_action(self, state: UCBState, actions: List[str]) -> str:
+    def _select_action(self, state: UCBState[StateT], actions: List[str]) -> str:
         """
         Select the next action using the UCB formula.
 
@@ -121,17 +111,19 @@ class MultiArmedBanditUCBAlgo(Algorithm[StateT, UCBState[StateT]]):
 
         return best_action
 
-    def init_tree(self) -> UCBState:
+    def init_tree(self) -> UCBState[StateT]:
         """
         Initialize the algorithm state with an empty tree.
 
         Returns:
             Initial algorithm state
         """
-        tree: Tree = Tree.with_root_node()
+        tree: Tree[StateT] = Tree.with_root_node()
         return UCBState(tree)
 
-    def get_state_score_pairs(self, state: UCBState) -> List[StateScoreType[StateT]]:
+    def get_state_score_pairs(
+        self, state: UCBState[StateT]
+    ) -> List[StateScoreType[StateT]]:
         """
         Get all the state-score pairs from the tree.
 
@@ -142,3 +134,45 @@ class MultiArmedBanditUCBAlgo(Algorithm[StateT, UCBState[StateT]]):
             List of (state, score) pairs
         """
         return state.tree.get_state_score_pairs()
+
+    def ask_batch(
+        self, state: UCBState[StateT], batch_size: int, actions: list[str]
+    ) -> tuple[UCBState[StateT], list[Trial]]:
+        # Initialize scores for actions if not already done
+        for action in actions:
+            if action not in state.scores_by_action:
+                state.scores_by_action[action] = []
+
+        # Select the next action using UCB
+        action = self._select_action(state, actions)
+
+        # Use the root node if the tree is empty
+        if not state.tree.root.children:
+            parent = state.tree.root
+        else:
+            # In this simple version, we always expand from the root
+            parent = state.tree.root
+
+        trials: list[Trial] = []
+        for _ in range(batch_size):
+            trials.append(state.trial_store.create_trial(parent.expand_idx, action))
+
+        return state, trials
+
+    def tell(
+        self, state: UCBState[StateT], trial_id: TrialId, result: tuple[StateT, float]
+    ) -> UCBState[StateT]:
+        _new_state, new_score = result
+
+        finished_trial = state.trial_store.get_finished_trial(trial_id, new_score)
+        if (
+            finished_trial is None
+        ):  # Trial is no longer valid, so we do not reflect the result to state
+            return state
+
+        state.tree.add_node(result, state.tree.get_node(finished_trial.node_to_expand))
+
+        # Update scores for the selected action
+        state.scores_by_action[finished_trial.action].append(new_score)
+
+        return state

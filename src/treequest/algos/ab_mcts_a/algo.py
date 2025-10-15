@@ -8,6 +8,7 @@ from typing import Dict, Generic, List, Literal, Optional, Tuple, TypeVar, Union
 from treequest.algos.ab_mcts_a.prob_state import NodeProbState, PriorConfig
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
+from treequest.trial import Trial, TrialId, TrialStore
 from treequest.types import GenerateFnType, StateScoreType
 
 # Type variable for state
@@ -20,7 +21,7 @@ logger = getLogger(__name__)
 class ABMCTSAStateManager(Generic[StateT]):
     """Manager for ABMCTSAState instances associated with expand_idx values."""
 
-    states: Dict[int, NodeProbState] = field(default_factory=dict)
+    states: Dict[int, NodeProbState] = field(default_factory=dict[int, NodeProbState])
     default_prior_config: Optional["PriorConfig"] = None
     default_reward_average_priors: Optional[Union[float, Dict[str, float]]] = None
     default_model_selection_strategy: str = "multiarm_bandit_thompson"
@@ -32,13 +33,13 @@ class ABMCTSAStateManager(Generic[StateT]):
     def __len__(self) -> int:
         return len(self.states)
 
-    def get(self, node: Node) -> Optional[NodeProbState]:
+    def get(self, node: Node[StateT]) -> Optional[NodeProbState]:
         """Get thompson state for the given expand_idx if it exists."""
         return self.states.get(node.expand_idx)
 
     def create(
         self,
-        node: Node,
+        node: Node[StateT],
         actions: List[str],
         prior_config: Optional["PriorConfig"] = None,
         reward_average_priors: Optional[Union[float, Dict[str, float]]] = None,
@@ -65,7 +66,7 @@ class ABMCTSAStateManager(Generic[StateT]):
 
     def get_or_create(
         self,
-        node: Node,
+        node: Node[StateT],
         actions: List[str],
         prior_config: Optional["PriorConfig"] = None,
         reward_average_priors: Optional[Union[float, Dict[str, float]]] = None,
@@ -96,10 +97,13 @@ class ABMCTSAAlgoState(Generic[StateT]):
     """State for ABMCTSA algorithm."""
 
     tree: Tree[StateT]
-    thompson_states: ABMCTSAStateManager = field(default_factory=ABMCTSAStateManager)
+    thompson_states: ABMCTSAStateManager[StateT] = field(
+        default_factory=ABMCTSAStateManager[StateT]
+    )
     all_rewards_store: Dict[str, List[float]] = field(
         default_factory=build_default_dict_of_list
     )
+    trial_store: TrialStore = field(default_factory=TrialStore)
 
 
 class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
@@ -155,14 +159,14 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
             )
         self.model_selection_strategy = model_selection_strategy
 
-    def init_tree(self) -> ABMCTSAAlgoState:
+    def init_tree(self) -> ABMCTSAAlgoState[StateT]:
         """
         Initialize the algorithm state with an empty tree.
 
         Returns:
             Initial algorithm state
         """
-        tree: Tree = Tree.with_root_node()
+        tree: Tree[StateT] = Tree.with_root_node()
         state_manager = ABMCTSAStateManager[StateT](
             default_prior_config=self.prior_config,
             default_reward_average_priors=self.reward_average_priors,
@@ -172,10 +176,10 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
 
     def step(
         self,
-        state: ABMCTSAAlgoState,
+        state: ABMCTSAAlgoState[StateT],
         generate_fn: Mapping[str, GenerateFnType[StateT]],
         inplace: bool = False,
-    ) -> ABMCTSAAlgoState:
+    ) -> ABMCTSAAlgoState[StateT]:
         """
         Perform one step of the Thompson Sampling MCTS algorithm.
 
@@ -189,38 +193,46 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
         if not inplace:
             state = copy.deepcopy(state)
 
-        # initialize all_rewards_store
-        if len(state.all_rewards_store) == 0:
-            for action in generate_fn:
-                state.all_rewards_store[action] = []
+        actions = list(generate_fn.keys())
+        state, trial = self.ask(state, actions)
 
+        action = trial.action
+        node = state.tree.get_node(trial.node_to_expand)
+        result = generate_fn[action](node.state)
+
+        self.tell(state, trial.trial_id, result)
+        return state
+
+    def get_expand_node_and_action(
+        self,
+        state: ABMCTSAAlgoState[StateT],
+        actions: list[str],
+    ) -> tuple[Node[StateT], str]:
         # If the tree is empty (only root), expand the root
         if not state.tree.root.children:
-            self._expand_node(state, state.tree.root, generate_fn)
-            return state
+            return state.tree.root, self._get_generation_action(
+                state, state.tree.root, actions
+            )
 
         # Run one simulation step
         node = state.tree.root
 
         # Selection phase: traverse tree until we reach a leaf node or need to create a new node
         while node.children:
-            node, action_used = self._select_child(state, node, generate_fn)
+            node, action = self._select_child(state, node, actions)
 
-            # If action is not None, it means we've generated a new node
-            if action_used is not None:
-                return state
-
-        # Expansion phase: expand leaf node
-        self._expand_node(state, node, generate_fn)
-
-        return state
+            # If action is not None, we will generate a new node from `node``
+            if action is not None:
+                return node, action
+        action = self._get_generation_action(state, node, actions)
+        return node, action
 
     def _select_child(
         self,
-        state: ABMCTSAAlgoState,
-        node: Node,
-        generate_fn: Mapping[str, GenerateFnType[StateT]],
-    ) -> Tuple[Node, Optional[str]]:
+        state: ABMCTSAAlgoState[StateT],
+        node: Node[StateT],
+        actions: list[str],
+    ) -> Tuple[Node[StateT], Optional[str]]:
         """
         Select a child node using Thompson Sampling.
 
@@ -235,7 +247,7 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
         # Get or create thompson state for this node
         thompson_state = state.thompson_states.get_or_create(
             node,
-            list(generate_fn.keys()),
+            actions,
         )
 
         # Ask for next node or action using Thompson Sampling
@@ -243,8 +255,7 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
 
         # If string returned, we need to generate a new node with that action
         if isinstance(selection, str):
-            new_node = self._generate_new_child(state, node, generate_fn, selection)
-            return new_node, selection
+            return node, selection
         else:
             # Otherwise, we return the existing child with that index
             if selection >= len(node.children):
@@ -253,27 +264,13 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
                 )
             return node.children[selection], None
 
-    def _expand_node(
-        self,
-        state: ABMCTSAAlgoState,
-        node: Node,
-        generate_fn: Mapping[str, GenerateFnType[StateT]],
-    ) -> Tuple[Node, str]:
-        """
-        Expand a leaf node by generating a new child.
-
-        Args:
-            state: Current algorithm state
-            node: Node to expand
-            generate_fn: Mapping of action names to generation functions
-
-        Returns:
-            Tuple of (new node, action used)
-        """
+    def _get_generation_action(
+        self, state: ABMCTSAAlgoState[StateT], node: Node[StateT], actions: list[str]
+    ) -> str:
         # Create thompson state for this node if it doesn't exist
         thompson_state = state.thompson_states.get_or_create(
             node,
-            list(generate_fn.keys()),
+            actions,
         )
 
         # Get action to use for generating child
@@ -285,53 +282,14 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
                 f"Something went wrong in ABMCTSA algorithm: selection should always be str when the expansion is from the leaf node, whle got {selection}"
             )
 
-        new_node = self._generate_new_child(state, node, generate_fn, selection)
-        return new_node, selection
-
-    def _generate_new_child(
-        self,
-        state: ABMCTSAAlgoState,
-        node: Node,
-        generate_fn: Mapping[str, GenerateFnType[StateT]],
-        action: str,
-    ) -> Node:
-        """
-        Generate a new child node using the specified action.
-
-        Args:
-            state: Current algorithm state
-            node: Parent node
-            generate_fn: Mapping of action names to generation functions
-            action: Name of action to use for generation
-
-        Returns:
-            Newly created node
-        """
-        # Generate new state and score using the selected action
-        node_state = None if node.is_root() else node.state
-        new_state, new_score = generate_fn[action](node_state)
-
-        # Add new node to the tree
-        new_node = state.tree.add_node((new_state, new_score), node)
-
-        # Update Thompson state with the new node
-        thompson_state = state.thompson_states.get(node)
-        if thompson_state:
-            thompson_state.register_new_child_node(
-                action, new_node, self.model_selection_strategy
-            )
-        else:
-            raise RuntimeError(
-                f"Internal Error in ABMCTSA: thompson_state should not be None for node {node}"
-            )
-
-        # Backpropagate the score through the parents
-        self._backpropagate(state, new_node, new_score, action)
-
-        return new_node
+        return selection
 
     def _backpropagate(
-        self, state: ABMCTSAAlgoState, node: Node, score: float, action: str
+        self,
+        state: ABMCTSAAlgoState[StateT],
+        node: Node[StateT],
+        score: float,
+        action: str,
     ) -> None:
         """
         Update Thompson Sampling statistics for all nodes in the path from node to root.
@@ -369,7 +327,7 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
             current = current.parent
 
     def get_state_score_pairs(
-        self, state: ABMCTSAAlgoState
+        self, state: ABMCTSAAlgoState[StateT]
     ) -> List[StateScoreType[StateT]]:
         """
         Get all the state-score pairs from the tree.
@@ -381,3 +339,57 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
             List of (state, score) pairs
         """
         return state.tree.get_state_score_pairs()
+
+    def ask_batch(
+        self, state: ABMCTSAAlgoState[StateT], batch_size: int, actions: list[str]
+    ) -> tuple[ABMCTSAAlgoState[StateT], list[Trial]]:
+        """
+        ABMCTSA is lightweight, so we don't parallelize it.
+        TODO: If we need to optimize it, ProcessPoolExecutor seems suffice
+        """
+        # initialize all_rewards_store
+        if len(state.all_rewards_store) == 0:
+            for a in actions:
+                state.all_rewards_store[a] = []
+
+        trials: list[Trial] = []
+        for _ in range(batch_size):
+            node, action = self.get_expand_node_and_action(state, actions)
+            trials.append(state.trial_store.create_trial(node.expand_idx, action))
+
+        return state, trials
+
+    def tell(
+        self,
+        state: ABMCTSAAlgoState[StateT],
+        trial_id: TrialId,
+        result: tuple[StateT, float],
+    ) -> ABMCTSAAlgoState[StateT]:
+        _new_state, new_score = result
+
+        finished_trial = state.trial_store.get_finished_trial(trial_id, new_score)
+        if (
+            finished_trial is None
+        ):  # Trial is no longer valid, so we do not reflect the result to state
+            return state
+
+        parent_node = state.tree.get_node(finished_trial.node_to_expand)
+        action = finished_trial.action
+        # Add new node to the tree
+        new_node = state.tree.add_node(result, parent_node)
+
+        # Update Thompson state with the new node
+        thompson_state = state.thompson_states.get(parent_node)
+        if thompson_state:
+            thompson_state.register_new_child_node(
+                action, new_node, self.model_selection_strategy
+            )
+        else:
+            raise RuntimeError(
+                f"Internal Error in ABMCTSA: thompson_state should not be None for node {parent_node}"
+            )
+
+        # Backpropagate the score through the parents
+        self._backpropagate(state, new_node, new_score, action)
+
+        return state

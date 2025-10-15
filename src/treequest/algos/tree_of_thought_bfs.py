@@ -4,10 +4,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import total_ordering
 from heapq import heappop, heappush
-from typing import Generic, List, Tuple, TypeVar
+from typing import Generic, List, TypeVar
 
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
+from treequest.trial import Trial, TrialId, TrialStoreWithNodeQueue
 from treequest.types import GenerateFnType, StateScoreType
 
 # Type variable for state
@@ -48,8 +49,9 @@ class ToTBFSState(Generic[StateT]):
     """State for Tree of Thoughts BFS algorithm."""
 
     tree: Tree[StateT]
-    # Queue of (node, action) pairs to expand next
-    next_nodes: List[Tuple[Node[StateT], str]] = dataclasses.field(default_factory=list)
+    trial_store: TrialStoreWithNodeQueue[StateT] = dataclasses.field(
+        default_factory=TrialStoreWithNodeQueue[StateT]
+    )
     # Current depth level being processed
     current_depth: int = 0
 
@@ -90,10 +92,10 @@ class TreeOfThoughtsBFSAlgo(Algorithm[StateT, ToTBFSState[StateT]]):
 
     def step(
         self,
-        state: ToTBFSState,
+        state: ToTBFSState[StateT],
         generate_fn: Mapping[str, GenerateFnType[StateT]],
         inplace: bool = False,
-    ) -> ToTBFSState:
+    ) -> ToTBFSState[StateT]:
         """
         Run one step of the ToT-BFS algorithm, expanding a single node.
 
@@ -107,33 +109,20 @@ class TreeOfThoughtsBFSAlgo(Algorithm[StateT, ToTBFSState[StateT]]):
         if not inplace:
             state = copy.deepcopy(state)
 
-        # If no nodes are queued for expansion, select nodes to expand
-        if not state.next_nodes:
-            # For the root node, just add it with the first action
-            if not state.tree.root.children:
-                action = next(iter(generate_fn))
-                state.next_nodes.append((state.tree.root, action))
-            else:
-                # Otherwise, select best nodes at the deepest level
-                self._queue_next_nodes(state, generate_fn)
+        state, trial = self.ask(state, actions=list(generate_fn.keys()))
+        parent = state.tree.get_node(trial.node_to_expand)
+        action = trial.action
 
-        # If we still have nodes to expand
-        if state.next_nodes:
-            # Get the next node and action to expand
-            node, action = state.next_nodes.pop(0)
+        result = generate_fn[action](parent.state)
 
-            # Generate a new state
-            new_state, new_score = generate_fn[action](node.state)
-            # Add to the tree
-            state.tree.add_node((new_state, new_score), node)
-            # Update current depth
-            state.current_depth = max(state.current_depth, node.depth + 1)
-
+        state = self.tell(state, trial.trial_id, result)
         return state
 
-    def _queue_next_nodes(
-        self, state: ToTBFSState, generate_fn: Mapping[str, GenerateFnType[StateT]]
-    ) -> None:
+    def _next_nodes_and_actions(
+        self,
+        state: ToTBFSState[StateT],
+        actions: list[str],
+    ) -> list[tuple[Node[StateT], str]]:
         """
         Select the best nodes at the deepest level and queue them for expansion.
 
@@ -141,7 +130,7 @@ class TreeOfThoughtsBFSAlgo(Algorithm[StateT, ToTBFSState[StateT]]):
             state: Current algorithm state
             generate_fn: Mapping of action names to generation functions
         """
-        priority_queue: List[TreeOfThoughtsBFSHeapItem] = []
+        priority_queue: List[TreeOfThoughtsBFSHeapItem[StateT]] = []
 
         # Find all unexpanded leaf nodes
         leaf_nodes = [
@@ -172,16 +161,17 @@ class TreeOfThoughtsBFSAlgo(Algorithm[StateT, ToTBFSState[StateT]]):
 
         # For each selected node, queue up expansions for all actions
         # Distribute the size_limit across all actions
-        actions = list(generate_fn.keys())
         samples_per_action = max(1, self.size_limit // len(actions))
 
+        nodes_and_actions = []
         for node in selected_nodes:
             # Queue expansions for each action
             for action in actions:
                 for _ in range(samples_per_action):
-                    state.next_nodes.append((node, action))
+                    nodes_and_actions.append((node, action))
+        return nodes_and_actions
 
-    def init_tree(self) -> ToTBFSState:
+    def init_tree(self) -> ToTBFSState[StateT]:
         """
         Initialize the algorithm state with an empty tree.
 
@@ -191,7 +181,9 @@ class TreeOfThoughtsBFSAlgo(Algorithm[StateT, ToTBFSState[StateT]]):
         tree: Tree = Tree.with_root_node()
         return ToTBFSState(tree=tree)
 
-    def get_state_score_pairs(self, state: ToTBFSState) -> List[StateScoreType[StateT]]:
+    def get_state_score_pairs(
+        self, state: ToTBFSState[StateT]
+    ) -> List[StateScoreType[StateT]]:
         """
         Get all the state-score pairs from the tree.
 
@@ -202,3 +194,42 @@ class TreeOfThoughtsBFSAlgo(Algorithm[StateT, ToTBFSState[StateT]]):
             List of (state, score) pairs
         """
         return state.tree.get_state_score_pairs()
+
+    def ask_batch(
+        self, state: ToTBFSState[StateT], batch_size: int, actions: list[str]
+    ) -> tuple[ToTBFSState[StateT], list[Trial]]:
+        # If no nodes are queued for expansion, select nodes to expand
+        if state.trial_store.is_queue_empty():
+            # For the root node, just add it with the first action
+            if not state.tree.root.children:
+                action = actions[0]
+                nodes_and_actions = [(state.tree.root, action)]
+            else:
+                # Otherwise, select best nodes at the deepest level
+                nodes_and_actions = self._next_nodes_and_actions(state, actions)
+            state.trial_store.fill_nodes_queue(nodes_and_actions)
+
+        trials = state.trial_store.get_batch_from_queue(batch_size)
+        return state, trials
+
+    def tell(
+        self,
+        state: ToTBFSState[StateT],
+        trial_id: TrialId,
+        result: tuple[StateT, float],
+    ) -> ToTBFSState[StateT]:
+        _new_state, new_score = result
+
+        finished_trial = state.trial_store.get_finished_trial(trial_id, new_score)
+        if (
+            finished_trial is None
+        ):  # Trial is no longer valid, so we do not reflect the result to state
+            return state
+
+        parent = state.tree.get_node(finished_trial.node_to_expand)
+        # Add to the tree
+        state.tree.add_node(result, parent)
+        # Update current depth
+        state.current_depth = max(state.current_depth, parent.depth + 1)
+
+        return state
