@@ -220,6 +220,14 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         """
         return state.tree.get_state_score_pairs()
 
+    def ask(
+        self, state: ABMCTSMState[StateT], actions: list[str]
+    ) -> tuple[ABMCTSMState[StateT], Trial]:
+        node, action = self.get_expand_node_and_action(state, actions)
+        trial = state.trial_store.create_trial(node.expand_idx, action)
+
+        return state, trial
+
     def ask_batch(
         self, state: ABMCTSMState[StateT], batch_size: int, actions: list[str]
     ) -> tuple[ABMCTSMState[StateT], list[Trial]]:
