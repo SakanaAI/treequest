@@ -1,10 +1,9 @@
 import copy
-import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
-from loky import ProcessPoolExecutor  # type: ignore[import-untyped]
+from loky import get_reusable_executor  # type: ignore[import-untyped]
 
 from treequest.algos.ab_mcts_m.numpyro_utils import initialize_numpyro
 from treequest.algos.ab_mcts_m.pymc_interface import (
@@ -19,11 +18,20 @@ from treequest.types import GenerateFnType, StateScoreType
 
 StateT = TypeVar("StateT")
 
+_WORKER_ALGO = None
+
+
+def _worker_init_abmctsm(config: dict, per_worker_cpu_devices: int):
+    # ここはトップレベル関数（pickle可能）にする
+    initialize_numpyro(per_worker_cpu_devices)
+    global _WORKER_ALGO
+    _WORKER_ALGO = ABMCTSM(**config)
+
 
 def _select_one_node_and_action(args):
-    state, actions, algo = args
+    state, actions = args
 
-    node, action = algo.get_expand_node_and_action(state, actions)
+    node, action = _WORKER_ALGO.get_expand_node_and_action(state, actions)
     return node.expand_idx, action
 
 
@@ -54,8 +62,8 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         model_selection_strategy: str = "multiarm_bandit_thompson",
         min_subtree_size_for_pruning: int = 4,
         same_score_proportion_threshold: float = 0.75,
-        max_cpu_devices: int = os.cpu_count() or 1,
         max_process_workers: int = 8,
+        is_worker: bool = False,
     ):
         """
         Initialize the AB-MCTS-M algorithm.
@@ -70,7 +78,6 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
                                       "multiarm_bandit_ucb": Use UCB for joint selection
             min_subtree_size_for_pruning: Pruning Config, see PruningConfig class.
             same_score_proportion_threshold: Pruning Config, see PruningConfig class.
-            max_cpu_devices: Maximum number of CPU devices (cores) used for PyMC sampling. It controls maximum number of parallel chain sampling.
             max_process_workers: Maximum number of parallel processes used for running PyMC sampling.
         """
         self.enable_pruning = enable_pruning
@@ -80,7 +87,6 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         )
         self.reward_average_priors = reward_average_priors
         self.model_selection_strategy = model_selection_strategy
-        self.max_cpu_devices = max_cpu_devices
         self.max_process_workers = max_process_workers
 
         # Create PyMCInterface as part of the algorithm itself, not the state
@@ -89,8 +95,24 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             pruning_config=self.pruning_config,
             reward_average_priors=self.reward_average_priors,
             model_selection_strategy=self.model_selection_strategy,
-            max_cpu_devices=max_cpu_devices,
         )
+
+        worker_config = dict(
+            enable_pruning=self.enable_pruning,
+            reward_average_priors=self.reward_average_priors,
+            model_selection_strategy=self.model_selection_strategy,
+            min_subtree_size_for_pruning=self.pruning_config.min_subtree_size_for_pruning,
+            same_score_proportion_threshold=self.pruning_config.same_score_proportion_threshold,
+            max_process_workers=1,
+            is_worker=True,
+        )
+
+        if not is_worker:
+            self.reusable_executor = get_reusable_executor(
+                max_workers=self.max_process_workers,
+                initializer=_worker_init_abmctsm,
+                initargs=(worker_config, 4),
+            )
 
     def init_tree(self) -> ABMCTSMState[StateT]:
         """
@@ -235,20 +257,15 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
                 f"batch_size should be equal to or more than 1, while batch_size={batch_size} is provided."
             )
 
-        num_workers = max(1, min(batch_size, self.max_process_workers))
-        per_worker_cpu_devices = max(1, self.max_cpu_devices // num_workers)
-
-        task_args = [(state, actions, self) for _ in range(batch_size)]
+        task_args = [(state, actions) for _ in range(batch_size)]
 
         trials: list[Trial[StateT]] = []
-        with ProcessPoolExecutor(
-            max_workers=num_workers,
-            initializer=lambda: initialize_numpyro(per_worker_cpu_devices),
-        ) as ex:
-            for node_id, action in ex.map(_select_one_node_and_action, task_args):
-                trials.append(
-                    state.trial_store.create_trial(state.tree.get_node(node_id), action)
-                )
+        for node_id, action in self.reusable_executor.map(
+            _select_one_node_and_action, task_args
+        ):
+            trials.append(
+                state.trial_store.create_trial(state.tree.get_node(node_id), action)
+            )
 
         return state, trials
 

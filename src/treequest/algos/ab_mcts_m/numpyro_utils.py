@@ -1,4 +1,4 @@
-def initialize_numpyro(num_cores: int = 4):  # For 4 parallel chains
+def initialize_numpyro(num_cpu_devices: int = 4):  # For 4 parallel chains
     import os
 
     import numpyro  # type: ignore[import-untyped]
@@ -9,5 +9,5 @@ def initialize_numpyro(num_cores: int = 4):  # For 4 parallel chains
     )
     numpyro.set_platform("cpu")  # Use CPU rather than GPU for sample_numpyro_nuts
     numpyro.set_host_device_count(
-        max(1, num_cores)
+        max(1, num_cpu_devices)
     )  # https://github.com/CDCgov/PyRenew/issues/151#issuecomment-2386861351
