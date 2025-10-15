@@ -17,7 +17,6 @@ from treequest.algos.tree import Node, Tree
 from treequest.trial import Trial, TrialId, TrialStore
 from treequest.types import GenerateFnType, StateScoreType
 
-# Type variable for state
 StateT = TypeVar("StateT")
 
 
@@ -37,7 +36,7 @@ class ABMCTSMState(Generic[StateT]):
     all_observations: Dict[int, Observation] = field(
         default_factory=dict[int, Observation]
     )
-    trial_store: TrialStore = field(default_factory=TrialStore)
+    trial_store: TrialStore[StateT] = field(default_factory=TrialStore[StateT])
 
 
 class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
@@ -222,15 +221,15 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
 
     def ask(
         self, state: ABMCTSMState[StateT], actions: list[str]
-    ) -> tuple[ABMCTSMState[StateT], Trial]:
+    ) -> tuple[ABMCTSMState[StateT], Trial[StateT]]:
         node, action = self.get_expand_node_and_action(state, actions)
-        trial = state.trial_store.create_trial(node.expand_idx, action)
+        trial = state.trial_store.create_trial(node, action)
 
         return state, trial
 
     def ask_batch(
         self, state: ABMCTSMState[StateT], batch_size: int, actions: list[str]
-    ) -> tuple[ABMCTSMState[StateT], list[Trial]]:
+    ) -> tuple[ABMCTSMState[StateT], list[Trial[StateT]]]:
         if batch_size <= 0:
             raise ValueError(
                 f"batch_size should be equal to or more than 1, while batch_size={batch_size} is provided."
@@ -241,13 +240,15 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
 
         task_args = [(state, actions, self) for _ in range(batch_size)]
 
-        trials: list[Trial] = []
+        trials: list[Trial[StateT]] = []
         with ProcessPoolExecutor(
             max_workers=num_workers,
             initializer=lambda: initialize_numpyro(per_worker_cpu_devices),
         ) as ex:
             for node_id, action in ex.map(_select_one_node_and_action, task_args):
-                trials.append(state.trial_store.create_trial(node_id, action))
+                trials.append(
+                    state.trial_store.create_trial(state.tree.get_node(node_id), action)
+                )
 
         return state, trials
 

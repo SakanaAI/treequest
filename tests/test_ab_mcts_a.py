@@ -86,9 +86,7 @@ def test_thompson_sampling_algo_with_mock():
             trials: list[Trial] = []
             for _ in range(batch_size):
                 node, _action = self._get_expand_node_and_action(state, actions)
-                trials.append(
-                    state.trial_store.create_trial(node.expand_idx, "action_a")
-                )
+                trials.append(state.trial_store.create_trial(node, "action_a"))
 
             return state, trials
 

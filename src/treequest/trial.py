@@ -20,8 +20,11 @@ def get_current_dt_str():
     return datetime.now(tz=timezone.utc).isoformat()
 
 
+StateT = TypeVar("StateT")
+
+
 @dataclasses.dataclass(frozen=True)
-class Trial:
+class Trial(Generic[StateT]):
     """
     A Trial object is used for handling each node expansion attempt.
     It stores all the information necessary to resume the experiments, even when treequest process is somehow stopped between ask and tell calls.
@@ -31,6 +34,7 @@ class Trial:
     node_to_expand: NodeId
     action: str
     score: float | None = None
+    parent_state: StateT | None = None
 
     created_at: str = dataclasses.field(default_factory=get_current_dt_str)
     completed_at: str | None = None
@@ -42,26 +46,31 @@ class Trial:
 
 
 @dataclasses.dataclass
-class TrialStore:
+class TrialStore(Generic[StateT]):
     """
     TrialStore is only a store for trial data.
     It is algo object's respnsibility to judge whether or not to reflect the result to tree.
     """
 
-    running_trials: dict[str, Trial] = dataclasses.field(
-        default_factory=dict[str, Trial]
+    running_trials: dict[str, Trial[StateT]] = dataclasses.field(
+        default_factory=dict[str, Trial[StateT]]
     )
-    finished_trials: dict[str, Trial] = dataclasses.field(
-        default_factory=dict[str, Trial]
+    finished_trials: dict[str, Trial[StateT]] = dataclasses.field(
+        default_factory=dict[str, Trial[StateT]]
     )
 
-    def create_trial(self, node_to_expand: NodeId, action: str) -> Trial:
+    def create_trial(self, node: Node[StateT], action: str) -> Trial[StateT]:
         trial_id = str(ulid.new())
-        trial = Trial(trial_id=trial_id, node_to_expand=node_to_expand, action=action)
+        trial = Trial(
+            trial_id=trial_id,
+            node_to_expand=node.expand_idx,
+            action=action,
+            parent_state=node.state,
+        )
         self.running_trials[trial_id] = trial
         return trial
 
-    def get_finished_trial(self, trial_id: str, score: float) -> Trial | None:
+    def get_finished_trial(self, trial_id: str, score: float) -> Trial[StateT] | None:
         """
         Check if trial_id is already reflected. Returns None if trial_id is invalid.
         """
@@ -88,9 +97,6 @@ class TrialStore:
         return finished_trial
 
 
-StateT = TypeVar("StateT")
-
-
 @dataclasses.dataclass
 class TrialStoreWithNodeQueue(Generic[StateT]):
     """
@@ -98,23 +104,28 @@ class TrialStoreWithNodeQueue(Generic[StateT]):
     It is algo object's respnsibility to judge whether or not to reflect the result to tree.
     """
 
-    running_trials: dict[str, Trial] = dataclasses.field(
-        default_factory=dict[str, Trial]
+    running_trials: dict[str, Trial[StateT]] = dataclasses.field(
+        default_factory=dict[str, Trial[StateT]]
     )
-    finished_trials: dict[str, Trial] = dataclasses.field(
-        default_factory=dict[str, Trial]
+    finished_trials: dict[str, Trial[StateT]] = dataclasses.field(
+        default_factory=dict[str, Trial[StateT]]
     )
     next_nodes: dict[str, list[Node[StateT]]] = dataclasses.field(
         default_factory=dict[str, list[Node[StateT]]]
     )
 
-    def create_trial(self, node_to_expand: NodeId, action: str) -> Trial:
+    def create_trial(self, node: Node[StateT], action: str) -> Trial[StateT]:
         trial_id = str(ulid.new())
-        trial = Trial(trial_id=trial_id, node_to_expand=node_to_expand, action=action)
+        trial = Trial(
+            trial_id=trial_id,
+            node_to_expand=node.expand_idx,
+            parent_state=node.state,
+            action=action,
+        )
         self.running_trials[trial_id] = trial
         return trial
 
-    def get_finished_trial(self, trial_id: str, score: float) -> Trial | None:
+    def get_finished_trial(self, trial_id: str, score: float) -> Trial[StateT] | None:
         """
         Check if trial_id is already reflected. Returns None if trial_id is invalid.
         """
@@ -182,12 +193,10 @@ class TrialStoreWithNodeQueue(Generic[StateT]):
                 self.next_nodes[action] = []
             self.next_nodes[action].append(node)
 
-    def get_batch_from_queue(self, batch_size: int) -> list[Trial]:
-        trials: list[Trial] = []
+    def get_batch_from_queue(self, batch_size: int) -> list[Trial[StateT]]:
+        trials: list[Trial[StateT]] = []
         while len(trials) < batch_size:
             for action, nodes in self.next_nodes.items():
                 for node in nodes:
-                    trials.append(
-                        self.create_trial(node_to_expand=node.expand_idx, action=action)
-                    )
+                    trials.append(self.create_trial(node=node, action=action))
         return trials

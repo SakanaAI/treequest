@@ -22,7 +22,9 @@ class UCBState(Generic[StateT]):
     scores_by_action: dict[str, List[float]] = dataclasses.field(
         default_factory=dict[str, list[float]]
     )
-    trial_store: TrialStore = dataclasses.field(default_factory=TrialStore)
+    trial_store: TrialStore[StateT] = dataclasses.field(
+        default_factory=TrialStore[StateT]
+    )
 
 
 class MultiArmedBanditUCBAlgo(Algorithm[StateT, UCBState[StateT]]):
@@ -137,7 +139,7 @@ class MultiArmedBanditUCBAlgo(Algorithm[StateT, UCBState[StateT]]):
 
     def ask_batch(
         self, state: UCBState[StateT], batch_size: int, actions: list[str]
-    ) -> tuple[UCBState[StateT], list[Trial]]:
+    ) -> tuple[UCBState[StateT], list[Trial[StateT]]]:
         # Initialize scores for actions if not already done
         for action in actions:
             if action not in state.scores_by_action:
@@ -153,9 +155,9 @@ class MultiArmedBanditUCBAlgo(Algorithm[StateT, UCBState[StateT]]):
             # In this simple version, we always expand from the root
             parent = state.tree.root
 
-        trials: list[Trial] = []
+        trials: list[Trial[StateT]] = []
         for _ in range(batch_size):
-            trials.append(state.trial_store.create_trial(parent.expand_idx, action))
+            trials.append(state.trial_store.create_trial(parent, action))
 
         return state, trials
 

@@ -103,7 +103,7 @@ class ABMCTSAAlgoState(Generic[StateT]):
     all_rewards_store: Dict[str, List[float]] = field(
         default_factory=build_default_dict_of_list
     )
-    trial_store: TrialStore = field(default_factory=TrialStore)
+    trial_store: TrialStore[StateT] = field(default_factory=TrialStore[StateT])
 
 
 class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
@@ -335,7 +335,7 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
 
     def ask_batch(
         self, state: ABMCTSAAlgoState[StateT], batch_size: int, actions: list[str]
-    ) -> tuple[ABMCTSAAlgoState[StateT], list[Trial]]:
+    ) -> tuple[ABMCTSAAlgoState[StateT], list[Trial[StateT]]]:
         """
         ABMCTSA is lightweight, so we don't parallelize it.
         TODO: If we need to optimize it, ProcessPoolExecutor seems suffice
@@ -345,10 +345,10 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
             for a in actions:
                 state.all_rewards_store[a] = []
 
-        trials: list[Trial] = []
+        trials: list[Trial[StateT]] = []
         for _ in range(batch_size):
             node, action = self._get_expand_node_and_action(state, actions)
-            trials.append(state.trial_store.create_trial(node.expand_idx, action))
+            trials.append(state.trial_store.create_trial(node, action))
 
         return state, trials
 
