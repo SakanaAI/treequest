@@ -13,7 +13,7 @@ if not _ab_mcts_m_import.is_successful():
 
     ABMCTSM = _ABMCTSMPlaceholder()  # type: ignore
 else:
-    from .algos.ab_mcts_m.algo import ABMCTSM
+    from .algos.ab_mcts_m.algo import ABMCTSM  # type: ignore[assignment]
 
 from .algos.ab_mcts_a.algo import ABMCTSA
 from .algos.base import Algorithm
