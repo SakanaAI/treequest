@@ -3,7 +3,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
-from loky import ProcessPoolExecutor
+from loky import ProcessPoolExecutor  # type: ignore[import-untyped]
 
 from treequest.algos.ab_mcts_m.numpyro_utils import initialize_numpyro
 from treequest.algos.ab_mcts_m.pymc_interface import (
