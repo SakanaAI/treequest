@@ -15,23 +15,20 @@ def test_tree_of_thoughts_bfs():
     def generate_fn(state: Optional[str]) -> Tuple[str, float]:
         if state is None:  # Root node
             depth = 0
-            base_score = random.random()
         else:
             # Extract depth and base score from previous state
             try:
                 parts = state.split("depth=")[1].split(",")
                 depth = int(parts[0])
-                base_score = float(parts[1].split("score=")[1][:-1])
             except (IndexError, ValueError):
                 depth = 0
-                base_score = random.random()
 
         # New depth is one more than parent
         new_depth = depth + 1
 
         # Score increases with depth but add some randomness
         # This will test that higher-scoring nodes at the same depth are preferred
-        new_score = base_score + 0.1 * new_depth + random.random() * 0.3
+        new_score = 0.1 * new_depth + random.random() * 0.3
 
         new_score = min(max(new_score, 0.0), 1.0)
 
