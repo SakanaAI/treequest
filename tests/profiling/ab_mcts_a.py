@@ -49,7 +49,7 @@ def profile_ab_mcts_a(batch_sizes: Optional[Tuple[int, ...]] = None):
     times = dict()
     for batch_size in batch_sizes:
         start = time.time()
-        algo = ABMCTSA()
+        algo: ABMCTSA = ABMCTSA()
         state = algo.init_tree()
 
         # Create a mapping of model names to generate functions
