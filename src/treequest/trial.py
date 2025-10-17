@@ -170,14 +170,40 @@ class TrialStoreWithNodeQueue(Generic[StateT]):
             self.finished_trials[invalidated_trial.trial_id] = invalidated_trial
 
     def advance_queue(self, action: str, parent_node: Node[StateT]) -> None:
-        tmp_node = self.next_nodes[action].pop()
-        if tmp_node != parent_node:
+        """
+        Advance the queued parent nodes for a given action by removing the
+        specific parent_node from the list, regardless of position.
+
+        This allows tell() to be called in any order (not only LIFO).
+        If the specified node is not found in the queue for the action,
+        raises a RuntimeError to signal inconsistency.
+        """
+        if action not in self.next_nodes or len(self.next_nodes[action]) == 0:
             raise RuntimeError(
-                f"Internal Error: next node with id: {tmp_node.expand_idx} does not match expansion target node with id: {parent_node.expand_idx}"
+                f"Internal Error: no queued nodes for action '{action}' while advancing queue."
             )
 
-        # If all the next_nodes for the action are generated, we invalidate running trials so the future tell calls will be no-op.
-        if len(self.next_nodes[action]) == 0:
+        nodes = self.next_nodes[action]
+        found_idx: int | None = None
+        for i, n in enumerate(nodes):
+            if n is parent_node or n.expand_idx == parent_node.expand_idx:
+                found_idx = i
+                break
+
+        if found_idx is None:
+            queued_ids = [n.expand_idx for n in nodes]
+            raise RuntimeError(
+                "Internal Error: expansion target node id "
+                f"{parent_node.expand_idx} not found in queued nodes for action '{action}'. "
+                f"Queued node ids: {queued_ids}"
+            )
+
+        # Remove the matched node
+        nodes.pop(found_idx)
+
+        # If all the next_nodes for the action are generated, we invalidate running
+        # trials so further tell calls for the same action become no-op.
+        if len(nodes) == 0:
             self._invalidate_trials(action)
 
     def is_queue_empty(self) -> bool:
@@ -193,8 +219,14 @@ class TrialStoreWithNodeQueue(Generic[StateT]):
 
     def get_batch_from_queue(self, batch_size: int) -> list[Trial[StateT]]:
         trials: list[Trial[StateT]] = []
-        while len(trials) < batch_size:
-            for action, nodes in self.next_nodes.items():
-                for node in nodes:
-                    trials.append(self.create_trial(node=node, action=action))
+        if batch_size <= 0:
+            return trials
+
+        # Generate up to batch_size trials without consuming the queue here.
+        # Queue advancement and invalidation are handled in tell via advance_queue.
+        for action, nodes in self.next_nodes.items():
+            for node in nodes:
+                trials.append(self.create_trial(node=node, action=action))
+                if len(trials) >= batch_size:
+                    return trials
         return trials

@@ -3,11 +3,11 @@ from typing import Optional, Tuple
 
 import pytest
 
+from treequest.algos.ab_mcts_a.algo import ABMCTSA
 from treequest.algos.best_first_search import BestFirstSearchAlgo
 from treequest.algos.multi_armed_bandit_ucb import MultiArmedBanditUCBAlgo
 from treequest.algos.standard_mcts import StandardMCTS
 from treequest.algos.tree_of_thought_bfs import TreeOfThoughtsBFSAlgo
-from treequest.algos.ab_mcts_a.algo import ABMCTSA
 
 
 def _gen_a(state: Optional[str]) -> Tuple[str, float]:
@@ -51,23 +51,14 @@ def test_e2e_batch_flow_light(algo_factory, actions, rounds, batch_size):
     for _ in range(rounds):
         state, trials = algo.ask_batch(state, batch_size=batch_size, actions=actions)
 
-        # Group trials by action and tell in LIFO order per action to satisfy
-        # TrialStoreWithNodeQueue's internal LIFO invalidation logic.
-        by_action: dict[str, list] = {}
+        # Perform tell for all trials returned this round (order no longer matters)
         for t in trials:
-            by_action.setdefault(t.action, []).append(t)
-
-        # Perform tell for all trials returned this round
-        for action, per_action_trials in by_action.items():
-            for t in reversed(per_action_trials):
-                result = generate_fns[action](
-                    state.tree.get_node(t.node_to_expand).state
-                )
-                before = len(state.tree.get_state_score_pairs())
-                state = algo.tell(state, t.trial_id, result)
-                after = len(state.tree.get_state_score_pairs())
-                if after == before + 1:
-                    total_reflected += 1
+            result = generate_fns[t.action](state.tree.get_node(t.node_to_expand).state)
+            before = len(state.tree.get_state_score_pairs())
+            state = algo.tell(state, t.trial_id, result)
+            after = len(state.tree.get_state_score_pairs())
+            if after == before + 1:
+                total_reflected += 1
 
         # After processing, ensure no running trials remain this round if the store is visible
         store = getattr(state, "trial_store", None)
@@ -75,10 +66,6 @@ def test_e2e_batch_flow_light(algo_factory, actions, rounds, batch_size):
             running = getattr(store, "running_trials", None)
             if running is not None:
                 assert len(running) == 0
-
-        # For queue-based stores, queues should drain each round after tells
-        if store is not None and hasattr(store, "is_queue_empty"):
-            assert store.is_queue_empty()
 
     # Verify that exactly reflected nodes (excluding root) were added
     assert len(state.tree.get_state_score_pairs()) == total_reflected

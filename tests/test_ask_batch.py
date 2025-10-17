@@ -3,11 +3,11 @@ from typing import Optional, Tuple
 
 import pytest
 
+from treequest.algos.ab_mcts_a.algo import ABMCTSA
 from treequest.algos.best_first_search import BestFirstSearchAlgo
 from treequest.algos.multi_armed_bandit_ucb import MultiArmedBanditUCBAlgo
 from treequest.algos.standard_mcts import StandardMCTS
 from treequest.algos.tree_of_thought_bfs import TreeOfThoughtsBFSAlgo
-from treequest.algos.ab_mcts_a.algo import ABMCTSA
 
 
 def _result_from_trial(action: str, parent_state: Optional[str]) -> Tuple[str, float]:
@@ -17,40 +17,34 @@ def _result_from_trial(action: str, parent_state: Optional[str]) -> Tuple[str, f
 
 
 @pytest.mark.parametrize(
-    "algo_factory,actions,batch_size,expect_min_length",
+    "algo_factory,actions,batch_size,expect_length",
     [
-        # Standard MCTS queues samples_per_action * len(actions)
+        # All algos should return exactly batch_size trials
         (
             lambda: StandardMCTS(samples_per_action=2, exploration_weight=1.0),
             ["A", "B"],
-            4,
-            4,
+            2,
+            2,
         ),
-        # Best-first search queues num_samples * len(actions)
-        (lambda: BestFirstSearchAlgo(num_samples=2), ["A", "B"], 4, 4),
-        # Tree-of-Thought BFS initially queues one root expansion (first action)
+        (lambda: BestFirstSearchAlgo(num_samples=2), ["A", "B"], 2, 2),
         (
             lambda: TreeOfThoughtsBFSAlgo(breadth_limit=2, size_limit=3),
             ["A", "B"],
             1,
             1,
         ),
-        # UCB bandit returns exactly batch_size trials
         (lambda: MultiArmedBanditUCBAlgo(exploration_weight=1.0), ["A", "B"], 3, 3),
-        # AB-MCTS-A returns exactly batch_size trials
         (lambda: ABMCTSA(), ["A", "B"], 3, 3),
     ],
 )
-def test_ask_batch_core_behaviour(algo_factory, actions, batch_size, expect_min_length):
+def test_ask_batch_core_behaviour(algo_factory, actions, batch_size, expect_length):
     random.seed(0)
     algo = algo_factory()
     state = algo.init_tree()
 
     # Ask for a batch
     state, trials = algo.ask_batch(state, batch_size=batch_size, actions=actions)
-
-    # Some queue-based algos may return more than requested; assert lower bound
-    assert len(trials) >= expect_min_length
+    assert len(trials) == expect_length
 
     # Trials have valid fields
     for t in trials:
@@ -58,14 +52,14 @@ def test_ask_batch_core_behaviour(algo_factory, actions, batch_size, expect_min_
         # Node id should exist in the tree
         state.tree.get_node(t.node_to_expand)
 
-    # Tell results for the first expect_min_length trials and check node growth
+    # Tell results for the first expect_length trials and check node growth
     before = len(state.tree.get_state_score_pairs())
-    for t in trials[:expect_min_length]:
+    for t in trials[:expect_length]:
         result = _result_from_trial(t.action, t.parent_state)
         state = algo.tell(state, t.trial_id, result)
 
     after = len(state.tree.get_state_score_pairs())
-    assert after - before == expect_min_length
+    assert after - before == expect_length
 
 
 def test_abmctsm_ask_batch_minimal():
