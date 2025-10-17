@@ -23,7 +23,6 @@ _WORKER_ALGO = None
 
 
 def _worker_init_abmctsm(config: dict, per_worker_cpu_devices: int):
-    # ここはトップレベル関数（pickle可能）にする
     initialize_numpyro(per_worker_cpu_devices)
     global _WORKER_ALGO
     _WORKER_ALGO = ABMCTSM(**config)
