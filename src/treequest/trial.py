@@ -222,11 +222,8 @@ class TrialStoreWithNodeQueue(Generic[StateT]):
         if batch_size <= 0:
             return trials
 
-        # Generate up to batch_size trials without consuming the queue here.
-        # Queue advancement and invalidation are handled in tell via advance_queue.
-        for action, nodes in self.next_nodes.items():
-            for node in nodes:
-                trials.append(self.create_trial(node=node, action=action))
-                if len(trials) >= batch_size:
-                    return trials
-        return trials
+        while len(trials) < batch_size:
+            for action, nodes in self.next_nodes.items():
+                for node in nodes:
+                    trials.append(self.create_trial(node=node, action=action))
+        return trials[:batch_size]
