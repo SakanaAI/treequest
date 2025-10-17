@@ -23,11 +23,11 @@ hyperfine \
 We note that different batch size leads to different tree shape; The larger batch size generates wider search tree.
 
 ### `batch_size=1`
-![batch_size=1](../images/batch/abmcts_m_batch_size_1.png)
+![batch_size=1](../images/batch/abmcts_m_batch_size_1.jpg)
 
 ### `batch_size=2`
-![batch_size=2](../images/batch/abmcts_m_batch_size_2.png)
+![batch_size=2](../images/batch/abmcts_m_batch_size_2.jpg)
 ### `batch_size=5`
-![batch_size=5](../images/batch/abmcts_m_batch_size_5.png)
+![batch_size=5](../images/batch/abmcts_m_batch_size_5.jpg)
 ### `batch_size=10`
-![batch_size=10](../images/batch/abmcts_m_batch_size_10.png)
+![batch_size=10](../images/batch/abmcts_m_batch_size_10.jpg)
