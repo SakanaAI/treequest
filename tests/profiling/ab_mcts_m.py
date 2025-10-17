@@ -3,7 +3,7 @@ import random
 import time
 from typing import Optional, Tuple
 
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore[import-untyped]
 
 from treequest import ABMCTSM
 from treequest.visualization import visualize_tree_graphviz
@@ -79,7 +79,7 @@ def profile_pymc_mixed_algo_speedup(batch_sizes: Optional[Tuple[int, ...]] = Non
         )
 
         # Check that both models were used at least once
-        model_counts = dict()
+        model_counts: dict[str, int] = dict()
         for obs in state.all_observations.values():
             model = obs.action
             model_counts[model] = model_counts.get(model, 0) + 1
