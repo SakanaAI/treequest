@@ -194,7 +194,5 @@ class BestFirstSearchAlgo(Algorithm[StateT, BFSState[StateT]]):
         # Add the new node to the priority queue
         heappush(state.leaves, BFSHeapItem(node=new_node, score=new_score))
 
-        state.trial_store.invalidate_trials_if_finished(
-            finished_trial.action, parent_node
-        )
+        state.trial_store.advance_queue(finished_trial.action, parent_node)
         return state

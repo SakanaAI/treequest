@@ -169,9 +169,7 @@ class TrialStoreWithNodeQueue(Generic[StateT]):
             )
             self.finished_trials[invalidated_trial.trial_id] = invalidated_trial
 
-    def invalidate_trials_if_finished(
-        self, action: str, parent_node: Node[StateT]
-    ) -> None:
+    def advance_queue(self, action: str, parent_node: Node[StateT]) -> None:
         tmp_node = self.next_nodes[action].pop()
         if tmp_node != parent_node:
             raise RuntimeError(

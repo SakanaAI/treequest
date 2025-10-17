@@ -143,9 +143,7 @@ class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
         if parent and len(parent.children) > 1:
             self._update_priors(state, parent)
 
-        state.trial_store.invalidate_trials_if_finished(
-            finished_trial.action, parent_node
-        )
+        state.trial_store.advance_queue(finished_trial.action, parent_node)
         return state
 
     def _update_priors(self, state: MCTSState[StateT], parent: Node[StateT]) -> None:

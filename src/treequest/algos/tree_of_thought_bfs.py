@@ -197,7 +197,7 @@ class TreeOfThoughtsBFSAlgo(Algorithm[StateT, ToTBFSState[StateT]]):
 
     def ask_batch(
         self, state: ToTBFSState[StateT], batch_size: int, actions: list[str]
-    ) -> tuple[ToTBFSState[StateT], list[Trial]]:
+    ) -> tuple[ToTBFSState[StateT], list[Trial[StateT]]]:
         # If no nodes are queued for expansion, select nodes to expand
         if state.trial_store.is_queue_empty():
             # For the root node, just add it with the first action
@@ -231,5 +231,7 @@ class TreeOfThoughtsBFSAlgo(Algorithm[StateT, ToTBFSState[StateT]]):
         state.tree.add_node(result, parent)
         # Update current depth
         state.current_depth = max(state.current_depth, parent.depth + 1)
+
+        state.trial_store.advance_queue(finished_trial.action, parent)
 
         return state
