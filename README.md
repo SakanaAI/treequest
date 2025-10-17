@@ -57,12 +57,14 @@ def generate(parent_state: State | None) -> tuple[State, float]:
 generate_fns = {"Action A": generate}
 actions = list(generate_fns.keys())
 
-# It runs AB-MCTS sampling step 8 processes in parallel
-algo = tq.ABMCTSM(max_process_workers=8)
+# We use batch_size=5 here
+batch_size = 5
+
+# It runs AB-MCTS sampling step with 5 processes in parallel
+algo = tq.ABMCTSM(max_process_workers=batch_size)
 search_tree = algo.init_tree()
 
-total_budget = 16
-batch_size = 8
+total_budget = 50
 num_steps = total_budget // batch_size
 for _ in range(num_steps):
     # ask_batch returns a list of `Trial` object, which has action, parent_state and trial_id attrs

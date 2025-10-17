@@ -1,5 +1,7 @@
 # Performance Investigation of `ask_batch` method
-Here, we report the profiling result of `ask_batch` with different `batch_size`. As we can see, as we increase `batch_size`, AB-MCTS run is accelerated, while the search tree shape gets more skewed.
+Here, we report the profiling result of `ask_batch` with different `batch_size`. As we increase `batch_size`, AB-MCTS runs are accelerated, while the search tree shapes get more wide.
+
+I profiled TreeQuest on a 32-core x86-64 machine running Ubuntu 20.04. As for AB-MCTS-M, it runs 4 parallel MCMC chains per process, so I tested `batch_size` from 1 to 10.
 
 ## Profiling Commands
 
