@@ -130,12 +130,7 @@ class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
         # Add the new node to the tree
         new_node = state.tree.add_node(result, parent_node)
 
-        # Update statistics for the new node
-        node_id = new_node.expand_idx
-        state.visit_counts[node_id] = 1
-        state.value_sums[node_id] = new_score
-
-        # Backpropagation: Update statistics for all nodes in the path
+        # Backpropagation updates visit_counts and value_sums for the new node and all ancestors.
         self._backpropagate(state, new_node, new_score)
 
         # Update priors if this node has siblings
