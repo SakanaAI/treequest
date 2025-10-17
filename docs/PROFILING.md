@@ -36,6 +36,16 @@ For a search tree with (# non-root nodes) = 50,
 | `uv run tests/profiling/ab_mcts_m.py -b 5` | 91.418 ± 2.391 | 90.026 | 94.179 | 1.71 ± 0.05 |
 | `uv run tests/profiling/ab_mcts_m.py -b 10` | 53.307 ± 0.747 | 52.468 | 53.902 | 1.00 |
 
+> ![NOTE]
+> For more resource-constrained systems, we get more mild boost. I ran profiling for M3 MacBook Air with 4 Pcores and 4 Ecores:
+> | Command | Mean [s] | Min [s] | Max [s] | Relative |
+> |:---|---:|---:|---:|---:|
+> | `uv run tests/profiling/ab_mcts_m.py -b 1` | 147.564 ± 4.527 | 144.297 | 152.731 | 1.90 ± 0.08 |
+> | `uv run tests/profiling/ab_mcts_m.py -b 2` | 116.557 ± 3.015 | 113.391 | 119.395 | 1.50 ± 0.06 |
+> | `uv run tests/profiling/ab_mcts_m.py -b 5` | 90.628 ± 1.760 | 89.299 | 92.624 | 1.17 ± 0.04 |
+> | `uv run tests/profiling/ab_mcts_m.py -b 10` | 77.773 ± 2.050 | 75.819 | 79.908 | 1.00 |
+
+
 We note that different batch size leads to different tree shape; The larger batch size generates wider search tree:
 
 #### `batch_size=1`
