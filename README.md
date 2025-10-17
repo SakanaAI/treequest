@@ -76,6 +76,9 @@ for _ in range(num_steps):
 best_state, best_node_score = tq.top_k(search_tree, algo, k=1)[0]
 ```
 
+Especially for AB-MCTS-M, it may take time to run `step`, so if you enconuter slow execution, you may want to use `ask_batch` rather than `step`.
+Plese note that setting too large `batch_size` potentially lead to a skew of search tree shape (i.e., the tree may become too wide), so it is best to avoid too large `batch_size`. We recommend `batch_size<=5` as a starting point.
+
 ## Features
 - Easy-to-use API with customizable node generation and node scoring logic.
 - **AB-MCTS-A** and **AB-MCTS-M**, as well as **Multi-LLM AB-MCTS** support (See [our paper](https://arxiv.org/abs/2503.04412) for algorithm details).
