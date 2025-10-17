@@ -1,8 +1,12 @@
 import copy
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
+from joblib import Parallel, delayed, parallel_config  # type: ignore[import-untyped]
+
+from treequest.algos.ab_mcts_m.numpyro_utils import initialize_numpyro
 from treequest.algos.ab_mcts_m.pymc_interface import (
     Observation,
     PruningConfig,
@@ -10,10 +14,25 @@ from treequest.algos.ab_mcts_m.pymc_interface import (
 )
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
+from treequest.trial import Trial, TrialId, TrialStore
 from treequest.types import GenerateFnType, StateScoreType
 
-# Type variable for state
 StateT = TypeVar("StateT")
+
+_WORKER_ALGO = None
+
+
+def _worker_init_abmctsm(config: dict, per_worker_cpu_devices: int):
+    initialize_numpyro(per_worker_cpu_devices)
+    global _WORKER_ALGO
+    _WORKER_ALGO = ABMCTSM(**config)
+
+
+def _select_one_node_and_action(args):
+    state, actions = args
+
+    node, action = _WORKER_ALGO.get_expand_node_and_action(state, actions)
+    return node.expand_idx, action
 
 
 @dataclass
@@ -22,7 +41,10 @@ class ABMCTSMState(Generic[StateT]):
 
     tree: Tree[StateT]
     # Dictionary mapping node expand_idx to observation data
-    all_observations: Dict[int, Observation] = field(default_factory=dict)
+    all_observations: Dict[int, Observation] = field(
+        default_factory=dict[int, Observation]
+    )
+    trial_store: TrialStore[StateT] = field(default_factory=TrialStore[StateT])
 
 
 class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
@@ -40,6 +62,8 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         model_selection_strategy: str = "multiarm_bandit_thompson",
         min_subtree_size_for_pruning: int = 4,
         same_score_proportion_threshold: float = 0.75,
+        max_process_workers: int = os.cpu_count() or 1,
+        is_worker: bool = False,
     ):
         """
         Initialize the AB-MCTS-M algorithm.
@@ -54,6 +78,7 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
                                       "multiarm_bandit_ucb": Use UCB for joint selection
             min_subtree_size_for_pruning: Pruning Config, see PruningConfig class.
             same_score_proportion_threshold: Pruning Config, see PruningConfig class.
+            max_process_workers: Maximum number of parallel processes used for running PyMC sampling.
         """
         self.enable_pruning = enable_pruning
         self.pruning_config = PruningConfig(
@@ -62,6 +87,7 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         )
         self.reward_average_priors = reward_average_priors
         self.model_selection_strategy = model_selection_strategy
+        self.max_process_workers = max_process_workers
 
         # Create PyMCInterface as part of the algorithm itself, not the state
         self.pymc_interface = PyMCInterface(
@@ -71,63 +97,72 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             model_selection_strategy=self.model_selection_strategy,
         )
 
-    def init_tree(self) -> ABMCTSMState:
+        # When running in the main process, we will parallelize with joblib
+        # in ask_batch using lazy per-worker initialization.
+
+    def init_tree(self) -> ABMCTSMState[StateT]:
         """
         Initialize the algorithm state with an empty tree.
 
         Returns:
             Initial algorithm state
         """
-        tree: Tree = Tree.with_root_node()
+        tree: Tree[StateT] = Tree.with_root_node()
 
         return ABMCTSMState(tree=tree)
 
     def step(
         self,
-        state: ABMCTSMState,
+        state: ABMCTSMState[StateT],
         generate_fn: Mapping[str, GenerateFnType[StateT]],
         inplace: bool = False,
-    ) -> ABMCTSMState:
+    ) -> ABMCTSMState[StateT]:
         """
-        Perform one step of AB-MCTS-M algorithm and generate a one node.
-
-        Args:
-            state: Current algorithm state
-            generate_fn: Mapping of action names to generation functions
-
-        Returns:
-            Updated algorithm state
+        Perform one step of the AB-MCTS-M algorithm and generate a new node.
         """
         if not inplace:
             state = copy.deepcopy(state)
 
+        actions = list(generate_fn.keys())
+        state, trial = self.ask(state, actions)
+
+        action = trial.action
+        node = state.tree.get_node(trial.node_to_expand)
+        result = generate_fn[action](node.state)
+
+        self.tell(state, trial.trial_id, result)
+        return state
+
+    def get_expand_node_and_action(
+        self,
+        state: ABMCTSMState[StateT],
+        actions: list[str],
+    ) -> tuple[Node[StateT], str]:
         # If the tree is empty (only root), expand the root
         if not state.tree.root.children:
-            self._expand_node(state, state.tree.root, generate_fn)
-            return state
+            return state.tree.root, self._get_generation_action(
+                state, state.tree.root, actions
+            )
 
         # Run one simulation step
         node = state.tree.root
 
-        # Selection phase: traverse tree until we reach a leaf node
+        # Selection phase: traverse tree until we reach a leaf node or need to create a new node
         while node.children:
-            node, action = self._select_child(state, node, generate_fn)
+            node, action = self._select_child(state, node, actions)
 
-            # If action is not None, it means we've generated a new node
+            # If action is not None, we will generate a new node from `node``
             if action is not None:
-                return state
-
-        # Expansion phase: expand leaf node
-        self._expand_node(state, node, generate_fn)
-
-        return state
+                return node, action
+        action = self._get_generation_action(state, node, actions)
+        return node, action
 
     def _select_child(
         self,
-        state: ABMCTSMState,
-        node: Node,
-        generate_fn: Mapping[str, GenerateFnType[StateT]],
-    ) -> Tuple[Node, Optional[str]]:
+        state: ABMCTSMState[StateT],
+        node: Node[StateT],
+        actions: list[str],
+    ) -> Tuple[Node[StateT], Optional[str]]:
         """
         Select a child node using PyMC interface.
 
@@ -143,8 +178,6 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             node, state.all_observations
         )
 
-        actions = list(generate_fn.keys())
-
         child_identifier = self.pymc_interface.run(
             observations,
             actions=actions,
@@ -154,38 +187,19 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
 
         # If we got a string, we need to generate a new node
         if isinstance(child_identifier, str):
-            new_node = self._generate_new_child(
-                state, node, generate_fn, child_identifier
-            )
-            return new_node, child_identifier
+            return node, child_identifier
         else:
             # Otherwise, we return the existing child
             return node.children[child_identifier], None
 
-    def _expand_node(
-        self,
-        state: ABMCTSMState,
-        node: Node,
-        generate_fn: Mapping[str, GenerateFnType[StateT]],
-    ) -> Tuple[Node, str]:
-        """
-        Expand a leaf node by generating a new child.
-
-        Args:
-            state: Current algorithm state
-            node: Node to expand
-            generate_fn: Mapping of action names to generation functions
-
-        Returns:
-            Tuple of (new node, model name used)
-        """
+    def _get_generation_action(
+        self, state: ABMCTSMState[StateT], node: Node[StateT], actions: list[str]
+    ) -> str:
         observations = Observation.collect_all_observations_of_descendant(
             node, state.all_observations
         )
 
-        actions = list(generate_fn.keys())
-
-        node_identifier = self.pymc_interface.run(
+        selected_action = self.pymc_interface.run(
             observations,
             actions=actions,
             node=node,
@@ -193,48 +207,14 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         )
 
         # Ensure we get a string model name, not an index
-        if not isinstance(node_identifier, str):
+        if not isinstance(selected_action, str):
             raise ValueError(
-                f"Internal Error: Expected model name string but got index {node_identifier}"
+                f"Internal Error: Expected model name string but got index {selected_action}"
             )
-
-        new_node = self._generate_new_child(state, node, generate_fn, node_identifier)
-        return new_node, node_identifier
-
-    def _generate_new_child(
-        self,
-        state: ABMCTSMState,
-        node: Node,
-        generate_fn: Mapping[str, GenerateFnType[StateT]],
-        action: str,
-    ) -> Node:
-        """
-        Generate a new child node using the specified model.
-
-        Args:
-            state: Current algorithm state
-            node: Parent node
-            generate_fn: Mapping of action names to generation functions
-            action: Name of action to use for generation
-
-        Returns:
-            Newly created node
-        """
-        # Generate new state and score using the selected model
-        new_state, new_score = generate_fn[action](node.state)
-
-        # Add new node to the tree
-        new_node = state.tree.add_node((new_state, new_score), node)
-
-        # Record observation
-        state.all_observations[new_node.expand_idx] = Observation(
-            reward=new_score, action=action, node_expand_idx=new_node.expand_idx
-        )
-
-        return new_node
+        return selected_action
 
     def get_state_score_pairs(
-        self, state: ABMCTSMState
+        self, state: ABMCTSMState[StateT]
     ) -> List[StateScoreType[StateT]]:
         """
         Get all the state-score pairs from the tree.
@@ -246,3 +226,84 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             List of (state, score) pairs
         """
         return state.tree.get_state_score_pairs()
+
+    def ask(
+        self, state: ABMCTSMState[StateT], actions: list[str]
+    ) -> tuple[ABMCTSMState[StateT], Trial[StateT]]:
+        node, action = self.get_expand_node_and_action(state, actions)
+        trial = state.trial_store.create_trial(node, action)
+
+        return state, trial
+
+    def ask_batch(
+        self, state: ABMCTSMState[StateT], batch_size: int, actions: list[str]
+    ) -> tuple[ABMCTSMState[StateT], list[Trial[StateT]]]:
+        if batch_size <= 0:
+            raise ValueError(
+                f"batch_size should be equal to or more than 1, while batch_size={batch_size} is provided."
+            )
+
+        if batch_size == 1:
+            state, trial = self.ask(state, actions)
+            return state, [trial]
+
+        # Prepare worker configuration for lazy initialization in each process
+        worker_config = dict(
+            enable_pruning=self.enable_pruning,
+            reward_average_priors=self.reward_average_priors,
+            model_selection_strategy=self.model_selection_strategy,
+            min_subtree_size_for_pruning=self.pruning_config.min_subtree_size_for_pruning,
+            same_score_proportion_threshold=self.pruning_config.same_score_proportion_threshold,
+            max_process_workers=1,
+            is_worker=True,
+        )
+
+        # Create task args: each task will ensure its own process-local initialization
+        task_args = [(state, actions) for _ in range(batch_size)]
+
+        with parallel_config(
+            backend="loky",
+            n_jobs=self.max_process_workers,
+            prefer="processes",
+            initializer=_worker_init_abmctsm,
+            initargs=(worker_config, 4),
+        ):
+            results = Parallel()(
+                delayed(_select_one_node_and_action)(args) for args in task_args
+            )
+
+        trials: list[Trial[StateT]] = []
+        for node_id, action in results:
+            trials.append(
+                state.trial_store.create_trial(state.tree.get_node(node_id), action)
+            )
+
+        return state, trials
+
+    def tell(
+        self,
+        state: ABMCTSMState[StateT],
+        trial_id: TrialId,
+        result: tuple[StateT, float],
+    ) -> ABMCTSMState[StateT]:
+        _new_state, new_score = result
+
+        finished_trial = state.trial_store.get_finished_trial(trial_id, new_score)
+        if (
+            finished_trial is None
+        ):  # Trial is no longer valid, so we do not reflect the result to state
+            return state
+
+        parent_node = state.tree.get_node(finished_trial.node_to_expand)
+
+        # Add new node to the tree
+        new_node = state.tree.add_node(result, parent_node)
+
+        # Record observation
+        state.all_observations[new_node.expand_idx] = Observation(
+            reward=new_score,
+            action=finished_trial.action,
+            node_expand_idx=new_node.expand_idx,
+        )
+
+        return state

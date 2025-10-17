@@ -1,8 +1,6 @@
 from .algos.ab_mcts_m._ab_mcts_m_imports import _import as _ab_mcts_m_import
 
-if _ab_mcts_m_import.is_successful():
-    from .algos.ab_mcts_m.algo import ABMCTSM
-else:
+if not _ab_mcts_m_import.is_successful():
     # Create a placeholder that raises an informative error when accessed
     class _ABMCTSMPlaceholder:
         def __getattr__(self, name):  # type: ignore
@@ -14,6 +12,8 @@ else:
             raise ImportError("ABMCTSM import failed.")
 
     ABMCTSM = _ABMCTSMPlaceholder()  # type: ignore
+else:
+    from .algos.ab_mcts_m.algo import ABMCTSM  # type: ignore[assignment]
 
 from .algos.ab_mcts_a.algo import ABMCTSA
 from .algos.base import Algorithm

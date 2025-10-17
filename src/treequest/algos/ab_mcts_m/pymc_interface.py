@@ -1,4 +1,3 @@
-import os
 import random
 
 # Import all dependencies at the top of the file
@@ -7,20 +6,18 @@ from dataclasses import dataclass, replace
 from math import log, sqrt
 from typing import Dict, List, Literal, Optional, Tuple, Union
 
-from treequest.algos.tree import Node
-
-
 from treequest.algos.ab_mcts_m._ab_mcts_m_imports import _import
+from treequest.algos.ab_mcts_m.numpyro_utils import initialize_numpyro
+from treequest.algos.tree import Node
 
 if _import.is_successful():
     from treequest.algos.ab_mcts_m._ab_mcts_m_imports import (
+        DataArray,
         jax,
         np,
-        numpyro,
         pd,
         pm,
         sample_numpyro_nuts,
-        DataArray,
     )
 
 
@@ -155,12 +152,7 @@ class PyMCInterface:
     ):
         _import.check()
 
-        # START Configure numpyro
-        os.environ["PYTENSOR_FLAGS"] = (
-            f"compiledir_format=compiledir_{os.getpid()},base_compiledir={os.path.expanduser('~')}/.pytensor/compiledir_llm-mcts"  # Avoid file lock error
-        )
-        numpyro.set_platform("cpu")  # Use CPU rather than GPU for sample_numpyro_nuts
-        # END Configure numpyro
+        initialize_numpyro(num_cpu_devices=4)
 
         self.enable_pruning = enable_pruning
         self.pruning_config = (

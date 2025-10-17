@@ -44,6 +44,44 @@ best_state, best_node_score = tq.top_k(search_tree, algo, k=1)[0]
 print(f"Best state: {best_state}, Score: {best_node_score}")
 ```
 
+Alternatively, you can use an ask–tell interface with batched AB-MCTS sampling steps:
+```python
+import random
+import treequest as tq
+
+State = str
+
+def generate(parent_state: State | None) -> tuple[State, float]:
+    ...
+
+generate_fns = {"Action A": generate}
+actions = list(generate_fns.keys())
+
+# We use batch_size=5 here
+batch_size = 5
+
+# It runs AB-MCTS sampling step with 5 processes in parallel
+algo = tq.ABMCTSM(max_process_workers=batch_size)
+search_tree = algo.init_tree()
+
+total_budget = 50
+num_steps = total_budget // batch_size
+for _ in range(num_steps):
+    # ask_batch returns a list of `Trial` object, which has action, parent_state and trial_id attrs
+    search_tree, trials = algo.ask_batch(search_tree, batch_size, actions)
+
+    for trial in trials:
+        result = generate_fns[trial.action](trial.parent_state)
+        # Call tell method with trial_id to update search_tree
+        search_tree = algo.tell(search_tree, trial.trial_id, result)
+
+best_state, best_node_score = tq.top_k(search_tree, algo, k=1)[0]
+```
+
+In particular for AB-MCTS-M, each `step` call can be slow. If you encounter slow execution, prefer `ask_batch` over `step`.
+Please note that using a large `batch_size` can skew the search-tree shape (i.e., the tree may become too wide), so it is best to avoid overly large `batch_size`, see [PROFILING.md](./docs/PROFILING.md) for example trees.
+We recommend `batch_size<=5` as a starting point.
+
 ## Features
 - Easy-to-use API with customizable node generation and node scoring logic.
 - **AB-MCTS-A** and **AB-MCTS-M**, as well as **Multi-LLM AB-MCTS** support (See [our paper](https://arxiv.org/abs/2503.04412) for algorithm details).
@@ -136,6 +174,17 @@ for _ in range(20):
     search_tree = algo.step(search_tree, generate_fns)
 ```
 The variation is not limited to LLM types; you can use different prompts, actions, scoring logic, etc. in `generate_fns`.
+
+### Batch Semantics and Concurrency
+- Algorithms are stateless objects; the evolving tree/search state is returned from `init_tree`, `step`, `ask`, and `tell`.
+- `ask_batch(state, batch_size, actions)` returns exactly `batch_size` Trial objects to expand next.
+  - Non-queue algorithms (e.g., `ABMCTSM`, `ABMCTSA`, `MultiArmedBanditUCB`) return exactly `batch_size` Trials.
+  - Queue-based algorithms (e.g., `StandardMCTS`, `BestFirstSearchAlgo`, `TreeOfThoughtsBFS`) precompute a set of parent/action pairs and duplicate them if needed to fill `batch_size`.
+- `tell(state, trial_id, (new_state, score))` reflects the result for the corresponding Trial.
+  - Order-independent: you can call `tell` in any order; reflection is tied to `trial_id`.
+  - Idempotent: calling `tell` twice on the same `trial_id` does not add extra nodes.
+  - For queue-based algorithms, over-told Trials beyond possible number of childs from a parent node (e.g., `(# actions)*samples_per_action` for StandardMCTS) become `INVALID` and are not reflected.
+- Scores are expected to be normalized to the `[0, 1]` range.
 
 ## Algorithms
 

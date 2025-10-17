@@ -1,6 +1,6 @@
 [project]
 name = "treequest"
-version = "0.1.2"
+version = "0.2.0"
 description = "A Tree Search Library with Flexible API for LLM Inference-Time Scaling"
 readme = "README.md"
 authors = [
@@ -9,7 +9,9 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
+    "joblib>=1.5.2",
     "scipy>=1.0.0",
+    "ulid-py>=1.1.0",
 ]
 
 [project.optional-dependencies]
