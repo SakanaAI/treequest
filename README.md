@@ -78,8 +78,8 @@ for _ in range(num_steps):
 best_state, best_node_score = tq.top_k(search_tree, algo, k=1)[0]
 ```
 
-In particular for AB-MCTS-M, each `step` call can be slow. If you enconuter slow execution, prefer `ask_batch` over `step`.
-Plese note that using a large `batch_size` can skew the search-tree shape (i.e., the tree may become too wide), so it is best to avoid overly large `batch_size`, see [PROFILING.md](./docs/PROFILING.md) for example trees. 
+In particular for AB-MCTS-M, each `step` call can be slow. If you encounter slow execution, prefer `ask_batch` over `step`.
+Please note that using a large `batch_size` can skew the search-tree shape (i.e., the tree may become too wide), so it is best to avoid overly large `batch_size`, see [PROFILING.md](./docs/PROFILING.md) for example trees.
 We recommend `batch_size<=5` as a starting point.
 
 ## Features
@@ -174,6 +174,17 @@ for _ in range(20):
     search_tree = algo.step(search_tree, generate_fns)
 ```
 The variation is not limited to LLM types; you can use different prompts, actions, scoring logic, etc. in `generate_fns`.
+
+### Batch Semantics and Concurrency
+- Algorithms are stateless objects; the evolving tree/search state is returned from `init_tree`, `step`, `ask`, and `tell`.
+- `ask_batch(state, batch_size, actions)` returns exactly `batch_size` Trial objects to expand next.
+  - Queue-based algorithms (e.g., StandardMCTS, BestFirstSearch, TreeOfThoughtsBFS) precompute a set of parent/action pairs and duplicate them if needed to fill `batch_size`.
+  - Non-queue algorithms (e.g., ABMCTSA, MultiArmedBanditUCB) also return exactly `batch_size` Trials.
+- `tell(state, trial_id, (new_state, score))` reflects the result for the corresponding Trial.
+  - Order-independent: you can call `tell` in any order; reflection is tied to `trial_id`.
+  - Idempotent: calling `tell` twice on the same `trial_id` does not add extra nodes.
+  - For queue-based algorithms, over-asked Trials beyond the queued candidates for a parent/action become `INVALID`.
+- Scores are expected to be normalized to the `[0, 1]` range.
 
 ## Algorithms
 

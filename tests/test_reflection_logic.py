@@ -42,11 +42,14 @@ def test_reflection_logic_queue_algorithms(algo_factory, actions):
     algo = algo_factory()
     state = algo.init_tree()
 
-    # First ask: retrieve all queued trials by requesting a large batch
+    # First ask: request a large batch; the queue will still contain the real candidates
     state, t1 = algo.ask_batch(state, batch_size=100, actions=actions)
-    # Expect at least 1
-    assert len(t1) > 0
-    expected_reflections = len(t1)
+    # The number of true reflections equals queued candidates, not number of trials returned
+    store = getattr(state, "trial_store", None)
+    assert store is not None
+    queued_total = sum(len(nodes) for nodes in store.next_nodes.values())  # type: ignore[attr-defined]
+    assert queued_total > 0
+    expected_reflections = queued_total
 
     # Second ask before any tell to create duplicate trials referencing same queued nodes
     state, t2 = algo.ask_batch(state, batch_size=expected_reflections, actions=actions)
@@ -79,13 +82,12 @@ def test_reflection_logic_tot_bfs():
     state = algo.init_tree()
     actions = ["A", "B"]
 
-    # First ask returns one trial (root with first action)
+    # First ask returns exactly batch_size trials (duplicates of the single queued root expansion)
     state, t1 = algo.ask_batch(state, batch_size=10, actions=actions)
-    assert len(t1) == 1
-    # Create duplicates by asking again without telling
+    assert len(t1) == 10
+    # Create more duplicates by asking again without telling
     state, t2 = algo.ask_batch(state, batch_size=3, actions=actions)
-    # get_batch_from_queue caps at available queued items (still 1), so duplicates present
-    assert len(t2) == 1
+    assert len(t2) == 3
     all_trials = list(t1) + list(t2)
     random.shuffle(all_trials)
 

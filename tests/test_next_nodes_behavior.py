@@ -120,17 +120,17 @@ def test_next_nodes_tot_bfs_root_case():
     algo = TreeOfThoughtsBFSAlgo(breadth_limit=2, size_limit=2)
     state = algo.init_tree()
 
-    # First ask for many, but ToT-BFS queues only one (root with first action)
+    # First ask for many; ToT-BFS queues only one candidate but returns batch_size duplicates
     state, t1 = algo.ask_batch(state, batch_size=5, actions=actions)
     next_nodes = state.trial_store.next_nodes  # type: ignore[attr-defined]
     keys = list(next_nodes.keys())
     assert keys == [actions[0]]
     assert len(next_nodes[actions[0]]) == 1
-    assert len(t1) == 1
+    assert len(t1) == 5
 
-    # Duplicate ask without tell; still single queued node
+    # Duplicate ask without tell; still single queued node, but returns duplicates to fill batch
     state, t2 = algo.ask_batch(state, batch_size=3, actions=actions)
-    assert len(t2) == 1
+    assert len(t2) == 3
     assert len(state.trial_store.next_nodes[actions[0]]) == 1  # type: ignore
 
     # Tell both trials; only one should reflect; queue becomes empty and duplicates invalidated
