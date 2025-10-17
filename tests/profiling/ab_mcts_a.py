@@ -5,11 +5,11 @@ from typing import Optional, Tuple
 
 from tqdm import tqdm  # type: ignore[import-untyped]
 
-from treequest import ABMCTSM
+from treequest import ABMCTSA
 from treequest.visualization import visualize_tree_graphviz
 
 
-def profile_ab_mcts_m(batch_sizes: Optional[Tuple[int, ...]] = None):
+def profile_ab_mcts_a(batch_sizes: Optional[Tuple[int, ...]] = None):
     # Use a fixed seed for reproducibility
     random.seed(42)
 
@@ -45,11 +45,11 @@ def profile_ab_mcts_m(batch_sizes: Optional[Tuple[int, ...]] = None):
         batch_sizes = (1, 2, 5, 10, 20)
 
     print(f"Running batch_sizes={batch_sizes}")
-    num_nodes = 50
+    num_nodes = 1000
     times = dict()
     for batch_size in batch_sizes:
         start = time.time()
-        algo = ABMCTSM(enable_pruning=True)
+        algo = ABMCTSA()
         state = algo.init_tree()
 
         # Create a mapping of model names to generate functions
@@ -67,27 +67,14 @@ def profile_ab_mcts_m(batch_sizes: Optional[Tuple[int, ...]] = None):
         state_score_pairs = algo.get_state_score_pairs(state)
         assert len(state_score_pairs) > 0, "Algorithm should generate nodes"
 
-        # Check that observations are recorded
-        assert len(state.all_observations) > 0, "Algorithm should record observations"
-
         # Visualize the tree
         visualize_tree_graphviz(
             state.tree,
-            save_path=f"tests/ab_mcts_m_{batch_size}",
-            title="AB-MCTS-M",
+            save_path=f"tests/ab_mcts_a_{batch_size}",
+            title="AB-MCTS-A",
             format="png",
         )
 
-        # Check that both models were used at least once
-        model_counts: dict[str, int] = dict()
-        for obs in state.all_observations.values():
-            model = obs.action
-            model_counts[model] = model_counts.get(model, 0) + 1
-
-        assert "high" in model_counts, "The 'high' model should be used at least once"
-        assert "low" in model_counts, "The 'low' model should be used at least once"
-
-        print(f"Model usage counts: {model_counts}")
         end = time.time()
         times[batch_size] = end - start
         print(f"batch size: {batch_size}, Elapsed Time: {end - start}")
@@ -98,7 +85,7 @@ def profile_ab_mcts_m(batch_sizes: Optional[Tuple[int, ...]] = None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Profile ABMCTSM with configurable batch sizes"
+        description="Profile ABMCTSA with configurable batch sizes"
     )
     parser.add_argument(
         "-b",
@@ -111,4 +98,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     provided = tuple(args.batch_sizes) if args.batch_sizes else None
-    profile_ab_mcts_m(provided)
+    profile_ab_mcts_a(provided)

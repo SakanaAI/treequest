@@ -63,7 +63,6 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         min_subtree_size_for_pruning: int = 4,
         same_score_proportion_threshold: float = 0.75,
         max_process_workers: int = os.cpu_count() or 1,
-        is_worker: bool = False,
     ):
         """
         Initialize the AB-MCTS-M algorithm.
@@ -255,7 +254,6 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             min_subtree_size_for_pruning=self.pruning_config.min_subtree_size_for_pruning,
             same_score_proportion_threshold=self.pruning_config.same_score_proportion_threshold,
             max_process_workers=1,
-            is_worker=True,
         )
 
         # Create task args: each task will ensure its own process-local initialization
