@@ -1,12 +1,15 @@
+import argparse
 import random
 import time
 from typing import Optional, Tuple
+
+from tqdm import tqdm
 
 from treequest import ABMCTSM
 from treequest.visualization import visualize_tree_graphviz
 
 
-def profile_pymc_mixed_algo_speedup():
+def profile_pymc_mixed_algo_speedup(batch_sizes: Optional[Tuple[int, ...]] = None):
     # Use a fixed seed for reproducibility
     random.seed(42)
 
@@ -38,8 +41,14 @@ def profile_pymc_mixed_algo_speedup():
         return f"Low(score={score:.2f})", score
 
     # Create the algorithm with default parameters
+    if batch_sizes is None:
+        batch_sizes = (1, 2, 5, 10, 20)
+
+    batch_sizes = (1, 2, 5)
+    print(f"Running batch_sizes={batch_sizes}")
+    num_nodes = 50
     times = dict()
-    for batch_size in (1, 2, 5, 10, 20):
+    for batch_size in batch_sizes:
         start = time.time()
         algo = ABMCTSM(enable_pruning=True)
         state = algo.init_tree()
@@ -48,8 +57,8 @@ def profile_pymc_mixed_algo_speedup():
         generate_fns = {"high": generate_fn_high, "low": generate_fn_low}
 
         # Run several steps to build the search tree
-        n_batches = 100 // batch_size
-        for _ in range(n_batches):
+        n_batches = (num_nodes + batch_size - 1) // batch_size
+        for _ in tqdm(range(n_batches)):
             state, trials = algo.ask_batch(state, batch_size, list(generate_fns.keys()))
             for trial in trials:
                 result = generate_fns[trial.action](trial.parent_state)
@@ -89,4 +98,18 @@ def profile_pymc_mixed_algo_speedup():
 
 
 if __name__ == "__main__":
-    profile_pymc_mixed_algo_speedup()
+    parser = argparse.ArgumentParser(
+        description="Profile ABMCTSM with configurable batch sizes"
+    )
+    parser.add_argument(
+        "-b",
+        "--batch-size",
+        dest="batch_sizes",
+        type=int,
+        action="append",
+        help="Batch size to test (repeat to provide multiple). Defaults to 1,2,5,10,20.",
+    )
+    args = parser.parse_args()
+
+    provided = tuple(args.batch_sizes) if args.batch_sizes else None
+    profile_pymc_mixed_algo_speedup(provided)
