@@ -179,7 +179,7 @@ The variation is not limited to LLM types; you can use different prompts, action
 - Algorithms are stateless objects; the evolving tree/search state is returned from `init_tree`, `step`, `ask`, and `tell`.
 - `ask_batch(state, batch_size, actions)` returns exactly `batch_size` Trial objects to expand next.
   - Non-queue algorithms (e.g., ABMCTSM, ABMCTSA, MultiArmedBanditUCB) return exactly `batch_size` Trials.
-  - Queue-based algorithms (e.g., StandardMCTS, BestFirstSearch, TreeOfThoughtsBFS) precompute a set of parent/action pairs and duplicate them if needed to fill `batch_size`.
+  - Queue-based algorithms (e.g., StandardMCTS, BestFirstSearchAlgo, TreeOfThoughtsBFS) precompute a set of parent/action pairs and duplicate them if needed to fill `batch_size`.
 - `tell(state, trial_id, (new_state, score))` reflects the result for the corresponding Trial.
   - Order-independent: you can call `tell` in any order; reflection is tied to `trial_id`.
   - Idempotent: calling `tell` twice on the same `trial_id` does not add extra nodes.

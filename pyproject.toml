@@ -1,6 +1,6 @@
 [project]
 name = "treequest"
-version = "0.1.2"
+version = "0.2.0"
 description = "A Tree Search Library with Flexible API for LLM Inference-Time Scaling"
 readme = "README.md"
 authors = [
