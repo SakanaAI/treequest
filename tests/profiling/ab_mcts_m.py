@@ -44,7 +44,6 @@ def profile_pymc_mixed_algo_speedup(batch_sizes: Optional[Tuple[int, ...]] = Non
     if batch_sizes is None:
         batch_sizes = (1, 2, 5, 10, 20)
 
-    batch_sizes = (1, 2, 5)
     print(f"Running batch_sizes={batch_sizes}")
     num_nodes = 50
     times = dict()
