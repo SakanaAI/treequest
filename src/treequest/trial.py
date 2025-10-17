@@ -222,8 +222,19 @@ class TrialStoreWithNodeQueue(Generic[StateT]):
         if batch_size <= 0:
             return trials
 
+        # Create at most `batch_size` trials, in round-robin order across actions,
+        # without creating extra hidden running trials that are not returned.
         while len(trials) < batch_size:
+            made_progress = False
             for action, nodes in self.next_nodes.items():
                 for node in nodes:
                     trials.append(self.create_trial(node=node, action=action))
-        return trials[:batch_size]
+                    made_progress = True
+                    if len(trials) >= batch_size:
+                        break
+                if len(trials) >= batch_size:
+                    break
+            # If there were no nodes to create trials from, stop to prevent infinite loop
+            if not made_progress:
+                break
+        return trials
