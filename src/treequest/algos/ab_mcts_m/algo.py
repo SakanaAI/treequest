@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
-from joblib import Parallel, delayed  # type: ignore[import-untyped]
+from joblib import Parallel, delayed, parallel_config  # type: ignore[import-untyped]
 
 from treequest.algos.ab_mcts_m.numpyro_utils import initialize_numpyro
 from treequest.algos.ab_mcts_m.pymc_interface import (
@@ -30,22 +30,6 @@ def _worker_init_abmctsm(config: dict, per_worker_cpu_devices: int):
 
 def _select_one_node_and_action(args):
     state, actions = args
-
-    node, action = _WORKER_ALGO.get_expand_node_and_action(state, actions)
-    return node.expand_idx, action
-
-
-def _select_one_node_and_action_joblib(args):
-    """Joblib worker wrapper with lazy per-process initialization.
-
-    Args tuple layout:
-        (worker_config, per_worker_cpu_devices, state, actions)
-    """
-    worker_config, per_worker_cpu_devices, state, actions = args
-
-    global _WORKER_ALGO
-    if _WORKER_ALGO is None:
-        _worker_init_abmctsm(worker_config, per_worker_cpu_devices)
 
     node, action = _WORKER_ALGO.get_expand_node_and_action(state, actions)
     return node.expand_idx, action
@@ -259,6 +243,10 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
                 f"batch_size should be equal to or more than 1, while batch_size={batch_size} is provided."
             )
 
+        if batch_size == 1:
+            state, trial = self.ask(state, actions)
+            return state, [trial]
+
         # Prepare worker configuration for lazy initialization in each process
         worker_config = dict(
             enable_pruning=self.enable_pruning,
@@ -271,11 +259,18 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         )
 
         # Create task args: each task will ensure its own process-local initialization
-        task_args = [(worker_config, 4, state, actions) for _ in range(batch_size)]
+        task_args = [(state, actions) for _ in range(batch_size)]
 
-        results = Parallel(n_jobs=self.max_process_workers, prefer="processes")(
-            delayed(_select_one_node_and_action_joblib)(args) for args in task_args
-        )
+        with parallel_config(
+            backend="loky",
+            n_jobs=self.max_process_workers,
+            prefer="processes",
+            initializer=_worker_init_abmctsm,
+            initargs=(worker_config, 4),
+        ):
+            results = Parallel()(
+                delayed(_select_one_node_and_action)(args) for args in task_args
+            )
 
         trials: list[Trial[StateT]] = []
         for node_id, action in results:
