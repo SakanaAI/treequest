@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
-from loky import get_reusable_executor  # type: ignore[import-untyped]
+from joblib import Parallel, delayed  # type: ignore[import-untyped]
 
 from treequest.algos.ab_mcts_m.numpyro_utils import initialize_numpyro
 from treequest.algos.ab_mcts_m.pymc_interface import (
@@ -30,6 +30,22 @@ def _worker_init_abmctsm(config: dict, per_worker_cpu_devices: int):
 
 def _select_one_node_and_action(args):
     state, actions = args
+
+    node, action = _WORKER_ALGO.get_expand_node_and_action(state, actions)
+    return node.expand_idx, action
+
+
+def _select_one_node_and_action_joblib(args):
+    """Joblib worker wrapper with lazy per-process initialization.
+
+    Args tuple layout:
+        (worker_config, per_worker_cpu_devices, state, actions)
+    """
+    worker_config, per_worker_cpu_devices, state, actions = args
+
+    global _WORKER_ALGO
+    if _WORKER_ALGO is None:
+        _worker_init_abmctsm(worker_config, per_worker_cpu_devices)
 
     node, action = _WORKER_ALGO.get_expand_node_and_action(state, actions)
     return node.expand_idx, action
@@ -97,22 +113,8 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             model_selection_strategy=self.model_selection_strategy,
         )
 
-        worker_config = dict(
-            enable_pruning=self.enable_pruning,
-            reward_average_priors=self.reward_average_priors,
-            model_selection_strategy=self.model_selection_strategy,
-            min_subtree_size_for_pruning=self.pruning_config.min_subtree_size_for_pruning,
-            same_score_proportion_threshold=self.pruning_config.same_score_proportion_threshold,
-            max_process_workers=1,
-            is_worker=True,
-        )
-
-        if not is_worker:
-            self.reusable_executor = get_reusable_executor(
-                max_workers=self.max_process_workers,
-                initializer=_worker_init_abmctsm,
-                initargs=(worker_config, 4),
-            )
+        # When running in the main process, we will parallelize with joblib
+        # in ask_batch using lazy per-worker initialization.
 
     def init_tree(self) -> ABMCTSMState[StateT]:
         """
@@ -257,12 +259,26 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
                 f"batch_size should be equal to or more than 1, while batch_size={batch_size} is provided."
             )
 
-        task_args = [(state, actions) for _ in range(batch_size)]
+        # Prepare worker configuration for lazy initialization in each process
+        worker_config = dict(
+            enable_pruning=self.enable_pruning,
+            reward_average_priors=self.reward_average_priors,
+            model_selection_strategy=self.model_selection_strategy,
+            min_subtree_size_for_pruning=self.pruning_config.min_subtree_size_for_pruning,
+            same_score_proportion_threshold=self.pruning_config.same_score_proportion_threshold,
+            max_process_workers=1,
+            is_worker=True,
+        )
+
+        # Create task args: each task will ensure its own process-local initialization
+        task_args = [(worker_config, 4, state, actions) for _ in range(batch_size)]
+
+        results = Parallel(n_jobs=self.max_process_workers, prefer="processes")(
+            delayed(_select_one_node_and_action_joblib)(args) for args in task_args
+        )
 
         trials: list[Trial[StateT]] = []
-        for node_id, action in self.reusable_executor.map(
-            _select_one_node_and_action, task_args
-        ):
+        for node_id, action in results:
             trials.append(
                 state.trial_store.create_trial(state.tree.get_node(node_id), action)
             )
