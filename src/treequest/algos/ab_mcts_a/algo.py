@@ -1,12 +1,9 @@
 import copy
-import os
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Dict, Generic, List, Literal, Optional, Tuple, TypeVar, Union
-
-from joblib import Parallel, delayed, parallel_config
 
 from treequest.algos.ab_mcts_a.prob_state import NodeProbState, PriorConfig
 from treequest.algos.base import Algorithm
@@ -18,20 +15,6 @@ from treequest.types import GenerateFnType, StateScoreType
 StateT = TypeVar("StateT")
 
 logger = getLogger(__name__)
-
-_WORKER_ALGO = None
-
-
-def _worker_init_abmctsa(config: dict):
-    global _WORKER_ALGO
-    _WORKER_ALGO = ABMCTSA(**config)
-
-
-def _select_one_node_and_action(args):
-    state, actions = args
-
-    node, action = _WORKER_ALGO._get_expand_node_and_action(state, actions)
-    return node.expand_idx, action
 
 
 @dataclass
@@ -137,7 +120,6 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
         reward_average_priors: Optional[Union[float, Dict[str, float]]] = None,
         prior_config: Optional[PriorConfig] = None,
         model_selection_strategy: str = "multiarm_bandit_thompson",
-        max_process_workers: int = os.cpu_count() or 1,
     ):
         """
         Initialize the AB-MCTS-A algorithm.
@@ -159,10 +141,8 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
                     f"dist_type argument {dist_type} is different from the one specified by prior_config {prior_config.dist_type}. {dist_type} is ignored, and {prior_config.dist_type} will be used."
                 )
 
-        self.dist_type = dist_type
         self.prior_config = prior_config
         self.reward_average_priors = reward_average_priors
-        self.max_process_workers = max_process_workers
 
         # Strategy for model selection:
         # "stack": Perform separate fits for each model (traditional approach)
@@ -365,34 +345,10 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
             for a in actions:
                 state.all_rewards_store[a] = []
 
-        worker_config = dict(
-            dist_type=self.dist_type,
-            reward_average_priors=self.reward_average_priors,
-            model_selection_strategy=self.model_selection_strategy,
-            prior_config=self.prior_config,
-            max_process_workers=1,
-        )
-
-        # Create task args: each task will ensure its own process-local initialization
-        task_args = [(state, actions) for _ in range(batch_size)]
-
-        with parallel_config(
-            backend="loky",
-            n_jobs=self.max_process_workers,
-            prefer="processes",
-            initializer=_worker_init_abmctsa,
-            initargs=(worker_config,),
-        ):
-            results = Parallel()(
-                delayed(_select_one_node_and_action)(args) for args in task_args
-            )
-
         trials: list[Trial[StateT]] = []
-        for node_id, action in results:
-            state.thompson_states.get_or_create(state.tree.get_node(node_id), actions)
-            trials.append(
-                state.trial_store.create_trial(state.tree.get_node(node_id), action)
-            )
+        for _ in range(batch_size):
+            node, action = self._get_expand_node_and_action(state, actions)
+            trials.append(state.trial_store.create_trial(node, action))
 
         return state, trials
 

@@ -9,7 +9,7 @@ from treequest import ABMCTSM
 from treequest.visualization import visualize_tree_graphviz
 
 
-def profile_ab_mcts_m(batch_sizes: Optional[Tuple[int, ...]] = None):
+def profile_pymc_mixed_algo_speedup(batch_sizes: Optional[Tuple[int, ...]] = None):
     # Use a fixed seed for reproducibility
     random.seed(42)
 
@@ -73,8 +73,8 @@ def profile_ab_mcts_m(batch_sizes: Optional[Tuple[int, ...]] = None):
         # Visualize the tree
         visualize_tree_graphviz(
             state.tree,
-            save_path=f"tests/ab_mcts_m_{batch_size}",
-            title="AB-MCTS-M",
+            save_path=f"tests/pymc_mixed_algo_basic_{batch_size}",
+            title="PyMC Mixed Algorithm Basic Test",
             format="png",
         )
 
@@ -111,4 +111,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     provided = tuple(args.batch_sizes) if args.batch_sizes else None
-    profile_ab_mcts_m(provided)
+    profile_pymc_mixed_algo_speedup(provided)
