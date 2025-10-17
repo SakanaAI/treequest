@@ -8,6 +8,8 @@ from treequest.visualization import visualize_tree_graphviz
 
 def test_tree_of_thoughts_bfs():
     """Test the TreeOfThoughtsBFSAlgo implementation."""
+    # Fix RNG for determinism across environments
+    random.seed(42)
 
     # Define a deterministic generate function that increases score with depth
     def generate_fn(state: Optional[str]) -> Tuple[str, float]:
@@ -19,7 +21,7 @@ def test_tree_of_thoughts_bfs():
             try:
                 parts = state.split("depth=")[1].split(",")
                 depth = int(parts[0])
-                base_score = float(parts[1].split("score=")[1])
+                base_score = float(parts[1].split("score=")[1][:-1])
             except (IndexError, ValueError):
                 depth = 0
                 base_score = random.random()
@@ -67,16 +69,18 @@ def test_tree_of_thoughts_bfs():
             # Sort nodes by score in descending order
             sorted_nodes = sorted(nodes, key=lambda n: n.score, reverse=True)
             top_nodes = sorted_nodes[: len(expanded_nodes)]
+            # Use a score threshold to tolerate score ties deterministically
+            threshold = top_nodes[-1].score if top_nodes else float("-inf")
 
             assert len(expanded_nodes) <= breadth_limit, (
                 f"There should be at most {breadth_limit} expanded nodes at depth {depth}, "
                 f"but there are {len(expanded_nodes)}"
             )
-            # Check that all expanded nodes are in the top-breadth_limit
+            # Check that all expanded nodes meet the top-k score threshold
             for expanded_node in expanded_nodes:
-                assert expanded_node in top_nodes, (
+                assert expanded_node.score + 1e-9 >= threshold, (
                     f"Expanded node at depth {depth} with score {expanded_node.score} "
-                    f"should be among the top-{breadth_limit} scoring nodes"
+                    f"should be >= top-{breadth_limit} threshold {threshold}"
                 )
 
     # Visualize the tree
