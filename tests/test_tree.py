@@ -158,6 +158,7 @@ def test_tree_add_node():
     assert node1.parent == tree.root
     assert node1.expand_idx == 0
     assert tree.root.children == [node1]
+    assert node1.trial_id is None
     assert tree.size == 2
 
     # Add second node as child of first node
@@ -170,6 +171,7 @@ def test_tree_add_node():
     assert node2.parent == node1
     assert node2.expand_idx == 1
     assert node1.children == [node2]
+    assert node2.trial_id is None
     assert tree.size == 3
 
     # Add third node as another child of root
@@ -182,7 +184,19 @@ def test_tree_add_node():
     assert node3.parent == tree.root
     assert node3.expand_idx == 2
     assert tree.root.children == [node1, node3]
+    assert node3.trial_id is None
     assert tree.size == 4
+
+
+def test_tree_add_node_with_trial_id():
+    tree = Tree()
+    trial_id = "trial-123"
+
+    node = tree.add_node(("state", 0.5), tree.root, trial_id=trial_id)
+
+    assert tree.root.children == [node]
+    assert node.trial_id == trial_id
+    assert tree.size == 2
 
 
 def test_tree_get_nodes():

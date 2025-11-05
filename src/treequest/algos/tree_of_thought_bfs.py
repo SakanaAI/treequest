@@ -8,8 +8,8 @@ from typing import Generic, List, TypeVar
 
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
-from treequest.trial import Trial, TrialId, TrialStoreWithNodeQueue
-from treequest.types import GenerateFnType, StateScoreType
+from treequest.trial import Trial, TrialStoreWithNodeQueue
+from treequest.types import GenerateFnType, StateScoreType, TrialId
 
 # Type variable for state
 StateT = TypeVar("StateT")
@@ -228,7 +228,7 @@ class TreeOfThoughtsBFSAlgo(Algorithm[StateT, ToTBFSState[StateT]]):
 
         parent = state.tree.get_node(finished_trial.node_to_expand)
         # Add to the tree
-        state.tree.add_node(result, parent)
+        state.tree.add_node(result, parent, trial_id=finished_trial.trial_id)
         # Update current depth
         state.current_depth = max(state.current_depth, parent.depth + 1)
 

@@ -8,8 +8,8 @@ from typing import Dict, Generic, List, Literal, Optional, Tuple, TypeVar, Union
 from treequest.algos.ab_mcts_a.prob_state import NodeProbState, PriorConfig
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
-from treequest.trial import Trial, TrialId, TrialStore
-from treequest.types import GenerateFnType, StateScoreType
+from treequest.trial import Trial, TrialStore
+from treequest.types import GenerateFnType, StateScoreType, TrialId
 
 # Type variable for state
 StateT = TypeVar("StateT")
@@ -369,7 +369,9 @@ class ABMCTSA(Algorithm[StateT, ABMCTSAAlgoState[StateT]]):
         parent_node = state.tree.get_node(finished_trial.node_to_expand)
         action = finished_trial.action
         # Add new node to the tree
-        new_node = state.tree.add_node(result, parent_node)
+        new_node = state.tree.add_node(
+            result, parent_node, trial_id=finished_trial.trial_id
+        )
 
         # Update Thompson state with the new node
         thompson_state = state.thompson_states.get(parent_node)

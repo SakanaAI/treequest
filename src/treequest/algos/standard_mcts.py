@@ -6,8 +6,8 @@ from typing import Dict, Generic, List, Optional, TypeVar
 
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
-from treequest.trial import Trial, TrialId, TrialStoreWithNodeQueue
-from treequest.types import GenerateFnType, StateScoreType
+from treequest.trial import Trial, TrialStoreWithNodeQueue
+from treequest.types import GenerateFnType, StateScoreType, TrialId
 
 # Type variable for state
 StateT = TypeVar("StateT")
@@ -128,7 +128,9 @@ class StandardMCTS(Algorithm[StateT, MCTSState[StateT]]):
 
         parent_node = state.tree.get_node(finished_trial.node_to_expand)
         # Add the new node to the tree
-        new_node = state.tree.add_node(result, parent_node)
+        new_node = state.tree.add_node(
+            result, parent_node, trial_id=finished_trial.trial_id
+        )
 
         # Backpropagation updates visit_counts and value_sums for the new node and all ancestors.
         self._backpropagate(state, new_node, new_score)

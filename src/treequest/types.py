@@ -1,5 +1,9 @@
 from collections.abc import Callable
-from typing import List, Optional, Tuple, TypeVar
+from typing import List, Optional, Tuple, TypeAlias, TypeVar
+
+# Type alias for NodeId and TrialId
+NodeId: TypeAlias = int
+TrialId: TypeAlias = str
 
 # Type variable for node state
 NodeStateT = TypeVar("NodeStateT")

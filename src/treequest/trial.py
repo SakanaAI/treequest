@@ -6,9 +6,7 @@ from typing import Generic, Literal, TypeAlias, TypeVar, get_args
 import ulid
 
 from treequest.algos.tree import Node
-
-TrialId: TypeAlias = str
-NodeId: TypeAlias = int
+from treequest.types import NodeId, TrialId
 
 TrialStatus: TypeAlias = Literal["RUNNING", "INVALID", "COMPLETE"]
 TRIAL_STATUSES: tuple[TrialStatus, ...] = get_args(TrialStatus)

@@ -7,8 +7,8 @@ from typing import Generic, List, Tuple, TypeVar
 
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
-from treequest.trial import Trial, TrialId, TrialStoreWithNodeQueue
-from treequest.types import GenerateFnType, StateScoreType
+from treequest.trial import Trial, TrialStoreWithNodeQueue
+from treequest.types import GenerateFnType, StateScoreType, TrialId
 
 # Type variable for state
 StateT = TypeVar("StateT")
@@ -189,7 +189,9 @@ class BestFirstSearchAlgo(Algorithm[StateT, BFSState[StateT]]):
 
         parent_node = state.tree.get_node(finished_trial.node_to_expand)
 
-        new_node = state.tree.add_node(result, parent_node)
+        new_node = state.tree.add_node(
+            result, parent_node, trial_id=finished_trial.trial_id
+        )
 
         # Add the new node to the priority queue
         heappush(state.leaves, BFSHeapItem(node=new_node, score=new_score))

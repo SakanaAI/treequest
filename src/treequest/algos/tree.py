@@ -1,7 +1,7 @@
 import dataclasses
 from typing import Generic, List, Optional, TypeVar
 
-from treequest.types import StateScoreType
+from treequest.types import StateScoreType, TrialId
 
 # Type variable for state
 StateT = TypeVar("StateT")
@@ -19,6 +19,7 @@ class Node(Generic[StateT]):
 
     parent: Optional["Node[StateT]"] = None
     children: List["Node[StateT]"] = dataclasses.field(default_factory=list)
+    trial_id: Optional[TrialId] = None
 
     def __post_init__(self) -> None:
         if not self.is_root():
@@ -112,10 +113,19 @@ class Tree(Generic[StateT]):
         ]
 
     def add_node(
-        self, state_score: StateScoreType[StateT], parent: Node[StateT]
+        self,
+        state_score: StateScoreType[StateT],
+        parent: Node[StateT],
+        trial_id: Optional[TrialId] = None,
     ) -> Node[StateT]:
         state, score = state_score
-        node = Node(state=state, score=score, parent=parent, expand_idx=self.size - 1)
+        node = Node(
+            state=state,
+            score=score,
+            parent=parent,
+            expand_idx=self.size - 1,
+            trial_id=trial_id,
+        )
         parent.children.append(node)
         self.size += 1
         return node

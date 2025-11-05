@@ -2,8 +2,8 @@ import abc
 from collections.abc import Mapping
 from typing import Generic, List, TypeVar
 
-from treequest.trial import Trial, TrialId
-from treequest.types import GenerateFnType, StateScoreType
+from treequest.trial import Trial
+from treequest.types import GenerateFnType, StateScoreType, TrialId
 
 # Type variables for node state and algorithm state
 NodeStateT = TypeVar("NodeStateT")

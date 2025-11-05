@@ -14,8 +14,8 @@ from treequest.algos.ab_mcts_m.pymc_interface import (
 )
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Node, Tree
-from treequest.trial import Trial, TrialId, TrialStore
-from treequest.types import GenerateFnType, StateScoreType
+from treequest.trial import Trial, TrialStore
+from treequest.types import GenerateFnType, StateScoreType, TrialId
 
 StateT = TypeVar("StateT")
 
@@ -297,7 +297,9 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         parent_node = state.tree.get_node(finished_trial.node_to_expand)
 
         # Add new node to the tree
-        new_node = state.tree.add_node(result, parent_node)
+        new_node = state.tree.add_node(
+            result, parent_node, trial_id=finished_trial.trial_id
+        )
 
         # Record observation
         state.all_observations[new_node.expand_idx] = Observation(

@@ -7,8 +7,8 @@ from typing import Generic, List, TypeVar
 
 from treequest.algos.base import Algorithm
 from treequest.algos.tree import Tree
-from treequest.trial import Trial, TrialId, TrialStore
-from treequest.types import GenerateFnType, StateScoreType
+from treequest.trial import Trial, TrialStore
+from treequest.types import GenerateFnType, StateScoreType, TrialId
 
 # Type variable for state
 StateT = TypeVar("StateT")
@@ -172,7 +172,11 @@ class MultiArmedBanditUCBAlgo(Algorithm[StateT, UCBState[StateT]]):
         ):  # Trial is no longer valid, so we do not reflect the result to state
             return state
 
-        state.tree.add_node(result, state.tree.get_node(finished_trial.node_to_expand))
+        state.tree.add_node(
+            result,
+            state.tree.get_node(finished_trial.node_to_expand),
+            trial_id=finished_trial.trial_id,
+        )
 
         # Update scores for the selected action
         state.scores_by_action[finished_trial.action].append(new_score)
