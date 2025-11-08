@@ -169,7 +169,7 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         Args:
             state: Current algorithm state
             node: Node to select child from
-            generate_fn: Mapping of action names to generation functions
+            actions: List of action names
 
         Returns:
             Tuple of (selected node, action if new node was generated)

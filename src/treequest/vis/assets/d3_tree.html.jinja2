@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TreeQuest Visualization - {{ metadata.algorithm }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: {{ '#1a1a1a' if theme == 'dark' else '#ffffff' }};
+            color: {{ '#e0e0e0' if theme == 'dark' else '#333333' }};
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .main-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 20px;
+            border-bottom: 1px solid {{ '#404040' if theme == 'dark' else '#e0e0e0' }};
+            background-color: {{ '#252525' if theme == 'dark' else '#f8f9fa' }};
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header .meta {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .controls {
+            padding: 15px 20px;
+            border-bottom: 1px solid {{ '#404040' if theme == 'dark' else '#e0e0e0' }};
+            background-color: {{ '#252525' if theme == 'dark' else '#f8f9fa' }};
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .controls label {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .controls input, .controls select {
+            padding: 5px 10px;
+            border: 1px solid {{ '#404040' if theme == 'dark' else '#e0e0e0' }};
+            border-radius: 4px;
+            background-color: {{ '#1a1a1a' if theme == 'dark' else '#ffffff' }};
+            color: {{ '#e0e0e0' if theme == 'dark' else '#333333' }};
+        }
+
+        .controls button {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 14px;
+        }
+
+        .controls button:hover {
+            background-color: #45a049;
+        }
+
+        #tree-container {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .side-panel {
+            width: 350px;
+            border-left: 1px solid {{ '#404040' if theme == 'dark' else '#e0e0e0' }};
+            overflow-y: auto;
+            padding: 20px;
+            background-color: {{ '#252525' if theme == 'dark' else '#f8f9fa' }};
+        }
+
+        /* Draggable resizer between main panel and side panel */
+        .panel-resizer {
+            width: 6px;
+            cursor: col-resize;
+            align-self: stretch;
+            background-color: transparent;
+            border-left: 1px solid {{ '#404040' if theme == 'dark' else '#e0e0e0' }};
+            border-right: 1px solid {{ '#404040' if theme == 'dark' else '#e0e0e0' }};
+            touch-action: none;
+        }
+
+        .panel-resizer:hover {
+            background-color: {{ 'rgba(255,255,255,0.06)' if theme == 'dark' else 'rgba(0,0,0,0.04)' }};
+        }
+
+        /* Disable text selection during drag */
+        .no-select {
+            user-select: none !important;
+        }
+
+        .detail-section {
+            margin-bottom: 20px;
+        }
+
+        .detail-section h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid {{ '#404040' if theme == 'dark' else '#e0e0e0' }};
+        }
+
+        .detail-item {
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .detail-label {
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .metrics-list {
+            list-style: none;
+            padding-left: 0; /* keep top-level compact; nested ULs will indent */
+        }
+
+        .metrics-list li {
+            margin: 5px 0;
+            font-size: 13px;
+        }
+
+        /* Restore indentation for nested lists inside the side panel.
+           Global reset (*) removes default UL padding; re-apply here so ul>ul nests correctly. */
+        .side-panel ul {
+            padding-left: 1.25rem;
+            margin-left: 0;
+            list-style-position: outside;
+        }
+
+        /* Top-level metrics list stays unbulleted and flush-left */
+        .side-panel ul.metrics-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        /* Visual nesting hints for deeper levels */
+        .side-panel ul ul { list-style-type: circle; }
+        .side-panel ul ul ul { list-style-type: square; }
+
+        /* D3 Tree Styles */
+        .node circle {
+            cursor: pointer;
+            stroke-width: 2px;
+            stroke: {{ '#f0f0f0' if theme == 'dark' else '#333333' }};
+            transition: fill 0.2s ease, stroke-width 0.2s ease;
+        }
+
+        .node.status-running circle {
+            stroke-dasharray: 4 2;
+        }
+
+        .node.status-invalid circle {
+            stroke-dasharray: 2 2;
+        }
+
+        .node.search-match circle {
+            stroke: #ff9800;
+            stroke-width: 4px;
+        }
+
+        .node.selected circle {
+            stroke: #4CAF50;
+            stroke-width: 4px;
+        }
+
+        .node.dimmed circle {
+            opacity: 0.25;
+        }
+
+        .node.dimmed text {
+            opacity: 0.4;
+        }
+
+        .node text {
+            font-family: sans-serif;
+            font-size: 14px;
+            pointer-events: none;
+            font-weight: 600;
+        }
+
+        .link {
+            fill: none;
+            stroke: {{ '#666' if theme == 'dark' else '#999' }};
+            stroke-width: 3px;
+            pointer-events: visibleStroke;
+        }
+
+        .link.dimmed {
+            opacity: 0.25;
+        }
+
+        .link-label {
+            font: 12px sans-serif;
+            fill: {{ '#f5f5f5' if theme == 'dark' else '#333333' }};
+            stroke: {{ '#1a1a1a' if theme == 'dark' else '#ffffff' }};
+            stroke-width: 3px;
+            paint-order: stroke fill;
+            pointer-events: none;
+        }
+
+        .legend-container {
+            width: 100%;
+            padding: 10px 20px 0 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .legend-bar {
+            height: 16px;
+            border-radius: 8px;
+            border: 1px solid {{ '#404040' if theme == 'dark' else '#cccccc' }};
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: {{ '#bbbbbb' if theme == 'dark' else '#555555' }};
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .edge-tooltip {
+            position: fixed;
+            pointer-events: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            background-color: {{ 'rgba(245, 245, 245, 0.95)' if theme == 'light' else 'rgba(32, 32, 32, 0.92)' }};
+            color: {{ '#222222' if theme == 'light' else '#f7f7f7' }};
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.1s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-panel">
+            <div class="header">
+                <h1>TreeQuest Visualization (D3.js)</h1>
+                <div class="meta">
+                    Algorithm: {{ metadata.algorithm }} |
+                    Nodes (excl. root): {{ metadata.num_nodes }} |
+                    Created: {{ metadata.created_at }}
+                </div>
+            </div>
+
+            <div class="controls">
+                <label>
+                    Search:
+                    <input type="text" id="search" placeholder="Search nodes...">
+                </label>
+                <label>
+                    Min Score:
+                    <input type="number" id="minScore" min="0" max="1" step="0.1" value="0" style="width: 80px">
+                </label>
+                <label>
+                    Max Depth:
+                    <input type="number" id="maxDepth" min="0" value="999" style="width: 80px">
+                </label>
+                <label>
+                    Orientation:
+                    <select id="orientationSelect">
+                        <option value="vertical">Top → Bottom</option>
+                        <option value="horizontal">Left → Right</option>
+                    </select>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px;">
+                    Edge Actions:
+                    <input type="checkbox" id="edgeLabelToggle">
+                </label>
+                <button id="fitBtn">Fit to Screen</button>
+                <button id="expandAllBtn">Expand All</button>
+                <button id="collapseAllBtn">Collapse All</button>
+            </div>
+
+            <div class="controls" style="border-top: 1px solid {{ '#404040' if theme == 'dark' else '#e0e0e0' }};">
+                <label style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                    <span id="timelineLabel" style="min-width: 100px;">Nodes (excl. root): All</span>
+                    <input type="range" id="timelineSlider" min="0" max="100" value="100" style="flex: 1;">
+                </label>
+                <button id="playBtn">▶ Play</button>
+                <button id="pauseBtn" style="display: none;">⏸ Pause</button>
+            </div>
+
+            <div class="legend-container">
+                <div id="legendBar" class="legend-bar"></div>
+                <div class="legend-labels">
+                    <span id="legendMinLabel">0.0</span>
+                    <span id="legendMidLabel">0.5</span>
+                    <span id="legendMaxLabel">1.0</span>
+                </div>
+            </div>
+
+            <div id="tree-container"></div>
+        </div>
+        <div id="panelResizer" class="panel-resizer" role="separator" aria-orientation="vertical" aria-label="Resize side panel"></div>
+        <div class="side-panel" id="sidePanel">
+            <div class="detail-section">
+                <h3>Node Details</h3>
+                <p>Click on a node to view details</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        {{ d3_js | safe }}
+    </script>
+
+    <script>
+        // Embedded snapshot data
+        const snapshotData = {{ snapshot_json | safe }};
+        const nodeColors = {{ node_colors | safe }};
+        const colorLegendSamples = {{ color_legend_samples | safe }};
+        const colormapStats = {{ colormap_stats | safe }};
+        const DEFAULT_NODE_COLOR = '#888888';
+
+        const baseNodesById = new Map();
+        const expandedNodeIds = new Set();
+        const manuallyCollapsedNodeIds = new Set();
+
+        const filterState = {
+            searchTerm: '',
+            minScore: 0,
+            maxDepth: Infinity,
+        };
+
+        function setNodeExpandedState(nodeId, shouldExpand) {
+            if (shouldExpand) {
+                expandedNodeIds.add(nodeId);
+                manuallyCollapsedNodeIds.delete(nodeId);
+            } else {
+                expandedNodeIds.delete(nodeId);
+                if (nodeId !== -1) {
+                    manuallyCollapsedNodeIds.add(nodeId);
+                }
+            }
+        }
+
+        let showEdgeLabels = false;
+        let layoutOrientation = 'vertical';
+        let selectedNodeId = null;
+        let autoExpandedIds = new Set();
+        let currentSearchMatches = new Set();
+        let currentHierarchyRoot = null;
+        let currentHierarchyNodeById = new Map();
+        let currentMaxNodeId = null;
+        let currentMaxNodeIndex = -1;
+
+        function getNodeColor(nodeData) {
+            if (!nodeData) {
+                return DEFAULT_NODE_COLOR;
+            }
+            return nodeColors[String(nodeData.id)] || DEFAULT_NODE_COLOR;
+        }
+
+        function getContrastingTextColor(hexColor) {
+            if (!hexColor || typeof hexColor !== 'string') {
+                return '#000000';
+            }
+            const cleaned = hexColor.replace('#', '');
+            if (cleaned.length !== 6) {
+                return '#000000';
+            }
+            const r = parseInt(cleaned.substring(0, 2), 16);
+            const g = parseInt(cleaned.substring(2, 4), 16);
+            const b = parseInt(cleaned.substring(4, 6), 16);
+            const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            return luminance > 150 ? '#1a1a1a' : '#f8f8f8';
+        }
+
+        function cloneTree(data) {
+            if (typeof structuredClone === 'function') {
+                try {
+                    return structuredClone(data);
+                } catch (error) {
+                    // structuredClone not supported or failed; fall back to JSON cloning
+                }
+            }
+            return JSON.parse(JSON.stringify(data));
+        }
+
+        function buildHierarchy(data) {
+            const nodesById = new Map();
+            data.nodes.forEach(node => {
+                const entry = {
+                    ...node,
+                    color: getNodeColor(node),
+                    children: []
+                };
+                nodesById.set(node.id, entry);
+            });
+
+            let rootNode = null;
+            data.nodes.forEach(node => {
+                const entry = nodesById.get(node.id);
+                baseNodesById.set(node.id, entry);
+                if (node.parent_id === null) {
+                    rootNode = entry;
+                } else {
+                    const parent = nodesById.get(node.parent_id);
+                    if (parent) {
+                        parent.children.push(entry);
+                    }
+                }
+            });
+
+            return rootNode;
+        }
+
+        const baseTreeData = buildHierarchy(snapshotData);
+
+        function initializeExpandedState(node) {
+            if (!node) {
+                return;
+            }
+            if (node.children && node.children.length > 0) {
+                setNodeExpandedState(node.id, true);
+                node.children.forEach(initializeExpandedState);
+            }
+        }
+        initializeExpandedState(baseTreeData);
+        setNodeExpandedState(-1, true);
+
+        const sortedNodeIds = Array.from(
+            new Set(snapshotData.nodes.filter(node => node.id !== -1).map(node => node.id))
+        ).sort((a, b) => a - b);
+        currentMaxNodeIndex = sortedNodeIds.length ? sortedNodeIds.length - 1 : -1;
+        currentMaxNodeId =
+            currentMaxNodeIndex >= 0 ? sortedNodeIds[currentMaxNodeIndex] : -1;
+
+        const container = d3.select('#tree-container');
+        const containerRect = container.node().getBoundingClientRect();
+        const initialWidth = containerRect.width || window.innerWidth || 960;
+        const initialHeight = containerRect.height || window.innerHeight || 640;
+
+        const svg = container.append('svg')
+            .attr('width', initialWidth)
+            .attr('height', initialHeight)
+            .style('width', '100%')
+            .style('height', '100%');
+
+        const g = svg.append('g');
+
+        const tooltip = d3.select('body')
+            .append('div')
+            .attr('class', 'edge-tooltip');
+        tooltip.style('opacity', 0);
+
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 3])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+            });
+
+        svg.call(zoom);
+
+        const breadthSpacing = 60;
+        const depthSpacing = 90;
+
+        const treeLayout = d3.tree()
+            .nodeSize([breadthSpacing, depthSpacing])
+            .separation((a, b) => (a.parent === b.parent ? 1.2 : 1.8));
+
+        function getViewportSize() {
+            const containerNode = container.node();
+            if (!containerNode) {
+                return {
+                    width: window.innerWidth || 960,
+                    height: window.innerHeight || 640,
+                };
+            }
+            const rect = containerNode.getBoundingClientRect();
+            return {
+                width: rect.width || containerNode.clientWidth || window.innerWidth || 960,
+                height: rect.height || containerNode.clientHeight || window.innerHeight || 640,
+            };
+        }
+
+        function syncSvgToContainer() {
+            const { width: newWidth, height: newHeight } = getViewportSize();
+            svg.attr('width', newWidth).attr('height', newHeight);
+            return { width: newWidth, height: newHeight };
+        }
+
+        const tooltipOffset = { x: 16, y: 16 };
+
+        function moveEdgeTooltip(event) {
+            const { clientX, clientY } = event;
+            tooltip
+                .style('left', `${clientX + tooltipOffset.x}px`)
+                .style('top', `${clientY + tooltipOffset.y}px`);
+        }
+
+        function showEdgeTooltip(event, message) {
+            tooltip
+                .style('opacity', 1)
+                .text(message);
+            moveEdgeTooltip(event);
+        }
+
+        function hideEdgeTooltip() {
+            tooltip.style('opacity', 0);
+        }
+
+        let tooltipActive = false;
+
+        function handleLinkMouseOver(event, linkDatum) {
+            const label = linkDatum?.target?.data?.action_from_parent;
+            if (!label) {
+                tooltipActive = false;
+                hideEdgeTooltip();
+                return;
+            }
+            tooltipActive = true;
+            showEdgeTooltip(event, `Action: ${label}`);
+        }
+
+        function handleLinkMouseMove(event) {
+            if (!tooltipActive) {
+                return;
+            }
+            moveEdgeTooltip(event);
+        }
+
+        function handleLinkMouseOut() {
+            tooltipActive = false;
+            hideEdgeTooltip();
+        }
+
+        function getStatusClass(status) {
+            if (!status) return '';
+            const normalized = String(status).toLowerCase();
+            if (normalized === 'running') return 'status-running';
+            if (normalized === 'invalid') return 'status-invalid';
+            return '';
+        }
+
+        function getNodeMatchText(node) {
+            if (node.id === -1) {
+                return 'root';
+            }
+            return [
+                String(node.id),
+                node.state_repr || '',
+                node.action_from_parent || '',
+                node.status || ''
+            ].join(' ').toLowerCase();
+        }
+
+        function addAncestorAutoExpand(nodeId) {
+            let currentId = nodeId;
+            while (currentId !== null && currentId !== undefined) {
+                if (!manuallyCollapsedNodeIds.has(currentId)) {
+                    autoExpandedIds.add(currentId);
+                }
+                const ancestor = baseNodesById.get(currentId);
+                currentId = ancestor ? ancestor.parent_id : null;
+            }
+        }
+
+        function filterNode(node) {
+            if (!node) {
+                return null;
+            }
+
+            const isRoot = node.id === -1;
+            const passesTimeline =
+                isRoot ||
+                currentMaxNodeId === null ||
+                currentMaxNodeId < 0 ||
+                node.id <= currentMaxNodeId;
+            if (!passesTimeline) {
+                return null;
+            }
+
+            const childResults = [];
+            if (node.children && node.children.length > 0) {
+                node.children.forEach(child => {
+                    const result = filterNode(child);
+                    if (result) {
+                        childResults.push(result);
+                    }
+                });
+            }
+
+            const nodeDepth = typeof node.depth === 'number' ? node.depth : 0;
+            const exceedsDepth =
+                Number.isFinite(filterState.maxDepth) &&
+                nodeDepth > filterState.maxDepth;
+            const belowScore = node.id !== -1 && node.score < filterState.minScore;
+
+            const searchTerm = filterState.searchTerm;
+            const matchesSearchTerm =
+                Boolean(searchTerm) &&
+                node.id !== -1 &&
+                getNodeMatchText(node).includes(searchTerm);
+
+            const passesFilters = isRoot || (!exceedsDepth && !belowScore);
+            const passesSearch = !searchTerm || matchesSearchTerm;
+            const isActive = passesFilters && passesSearch;
+            const childVisible = childResults.some(child => child._isVisible);
+
+            const cloned = {
+                ...node,
+                children: childResults,
+                _passesFilter: passesFilters,
+                _passesSearch: passesSearch,
+                _isActive: isActive,
+                _isVisible: isRoot || isActive || childVisible,
+                _filteredOut: !isActive,
+                _searchMatch: false,
+            };
+
+            if (isRoot) {
+                cloned._filteredOut = false;
+            }
+
+            if (Boolean(searchTerm) && matchesSearchTerm && passesFilters) {
+                cloned._searchMatch = true;
+                currentSearchMatches.add(node.id);
+                addAncestorAutoExpand(node.parent_id);
+            }
+
+            return cloned;
+        }
+
+        function applyExpansionState(node) {
+            if (!node || !node.children || node.children.length === 0) {
+                node._children = null;
+                return;
+            }
+
+            node.children.forEach(child => applyExpansionState(child));
+
+            const isManuallyCollapsed = manuallyCollapsedNodeIds.has(node.id);
+            const shouldExpand =
+                !isManuallyCollapsed &&
+                (expandedNodeIds.has(node.id) || autoExpandedIds.has(node.id));
+            if (shouldExpand) {
+                node._children = null;
+            } else {
+                node._children = node.children;
+                node.children = null;
+            }
+        }
+
+        function buildFilteredTree() {
+            autoExpandedIds = new Set();
+            currentSearchMatches = new Set();
+
+            const cloned = cloneTree(baseTreeData);
+            const processedRoot = filterNode(cloned);
+
+            const rootNode = processedRoot || { ...cloned, children: [] };
+            rootNode._filteredOut = false;
+            rootNode._searchMatch = false;
+            applyExpansionState(rootNode);
+            return rootNode;
+        }
+
+        function computeNodeClass(d) {
+            const classes = ['node'];
+            if (d.data.id === -1) {
+                classes.push('root');
+            }
+            const statusClass = getStatusClass(d.data.status);
+            if (statusClass) {
+                classes.push(statusClass);
+            }
+            if (d.data._filteredOut) {
+                classes.push('dimmed');
+            }
+            if (selectedNodeId !== null && d.data.id === selectedNodeId) {
+                classes.push('selected');
+            }
+            if (currentSearchMatches.has(d.data.id)) {
+                classes.push('search-match');
+            }
+            return classes.join(' ');
+        }
+
+        function computeLinkClass(linkDatum) {
+            const classes = ['link'];
+            const sourceFiltered = linkDatum?.source?.data?._filteredOut;
+            const targetFiltered = linkDatum?.target?.data?._filteredOut;
+            if (sourceFiltered || targetFiltered) {
+                classes.push('dimmed');
+            }
+            return classes.join(' ');
+        }
+
+        function computeNodeRadius(nodeData) {
+            let radius = nodeData._filteredOut ? 16 : 20;
+            if (nodeData._isActive) {
+                radius = Math.max(radius, 24);
+            }
+            if (nodeData._searchMatch) {
+                radius = Math.max(radius, 24);
+            }
+            if (selectedNodeId !== null && nodeData.id === selectedNodeId) {
+                radius = Math.max(radius, 26);
+            }
+            return radius;
+        }
+
+        function fitToScreen() {
+            const bounds = g.node().getBBox();
+            if (!bounds || bounds.width === 0 || bounds.height === 0) {
+                return;
+            }
+            const { width: fullWidth, height: fullHeight } = syncSvgToContainer();
+            if (!fullWidth || !fullHeight) {
+                return;
+            }
+            const widthScale = fullWidth / bounds.width;
+            const heightScale = fullHeight / bounds.height;
+            const scale = 0.9 * Math.min(widthScale, heightScale);
+            let translateX = fullWidth / 2 - scale * (bounds.x + bounds.width / 2);
+            let translateY = fullHeight / 2 - scale * (bounds.y + bounds.height / 2);
+
+            if (layoutOrientation === 'vertical') {
+                const topPadding = Math.max(40, fullHeight * 0.05);
+                translateY = topPadding - scale * bounds.y;
+            } else {
+                const leftPadding = Math.max(60, fullWidth * 0.05);
+                translateX = leftPadding - scale * bounds.x;
+            }
+            svg.call(
+                zoom.transform,
+                d3.zoomIdentity.translate(translateX, translateY).scale(scale)
+            );
+        }
+
+        let timelineLabel = null;
+
+        function updateTimelineLabel(visibleCount) {
+            if (!timelineLabel) {
+                return;
+            }
+            const total = sortedNodeIds.length;
+            if (total === 0) {
+                timelineLabel.textContent = 'Nodes (excl. root): 0/0';
+                return;
+            }
+            const progress = currentMaxNodeIndex >= 0 ? currentMaxNodeIndex + 1 : 0;
+            timelineLabel.textContent = `Nodes (excl. root): ${progress}/${total}`;
+        }
+
+        function updateSidePanelById(nodeId) {
+            if (nodeId === null || !currentHierarchyNodeById.has(nodeId)) {
+                updateSidePanel(null);
+                return;
+            }
+            const nodeData = currentHierarchyNodeById.get(nodeId).data;
+            updateSidePanel(nodeData);
+        }
+
+        function update() {
+            hideEdgeTooltip();
+            tooltipActive = false;
+            const filteredRootData = buildFilteredTree();
+            currentHierarchyRoot = d3.hierarchy(filteredRootData, d => d.children);
+            treeLayout(currentHierarchyRoot);
+
+            const nodes = currentHierarchyRoot.descendants();
+            const links = currentHierarchyRoot.links();
+
+            currentHierarchyNodeById = new Map();
+            nodes.forEach(d => currentHierarchyNodeById.set(d.data.id, d));
+
+            let minX = Infinity;
+            let maxX = -Infinity;
+            nodes.forEach(d => {
+                if (d.x < minX) minX = d.x;
+                if (d.x > maxX) maxX = d.x;
+            });
+            const xOffset = (minX + maxX) / 2;
+
+            nodes.forEach(d => {
+                d.x -= xOffset;
+                if (layoutOrientation === 'vertical') {
+                    d.screenX = d.x;
+                    d.screenY = d.depth * depthSpacing;
+                } else {
+                    d.screenX = d.depth * depthSpacing;
+                    d.screenY = d.x;
+                }
+            });
+
+            if (selectedNodeId !== null && !currentHierarchyNodeById.has(selectedNodeId)) {
+                selectedNodeId = null;
+            }
+
+            const nodeSelection = g.selectAll('g.node')
+                .data(nodes, d => d.data.id);
+
+            const nodeEnter = nodeSelection.enter().append('g')
+                .attr('class', d => computeNodeClass(d))
+                .attr('transform', d => `translate(${d.screenX},${d.screenY})`)
+                .on('click', (event, d) => {
+                    selectedNodeId = d.data.id;
+                    update();
+                });
+
+            nodeEnter.append('circle')
+                .attr('r', d => computeNodeRadius(d.data))
+                .attr('fill', d => getNodeColor(d.data));
+
+            nodeEnter.append('text')
+                .attr('class', 'node-label')
+                .attr('dy', '0.35em')
+                .attr('text-anchor', 'middle')
+                .text(d => (d.data.id === -1 ? 'ROOT' : String(d.data.id)))
+                .style('fill', d => getContrastingTextColor(getNodeColor(d.data)));
+
+            const nodeMerge = nodeEnter.merge(nodeSelection);
+
+            nodeMerge
+                .attr('class', d => computeNodeClass(d))
+                .attr('transform', d => `translate(${d.screenX},${d.screenY})`);
+
+            nodeMerge.select('circle')
+                .attr('r', d => computeNodeRadius(d.data))
+                .attr('fill', d => getNodeColor(d.data));
+
+            nodeMerge.select('text')
+                .text(d => (d.data.id === -1 ? 'ROOT' : String(d.data.id)))
+                .style('fill', d => getContrastingTextColor(getNodeColor(d.data)));
+
+            nodeSelection.exit().remove();
+
+            const linkSelection = g.selectAll('path.link')
+                .data(links, d => d.target.data.id);
+
+            const linkEnter = linkSelection.enter().insert('path', 'g')
+                .attr('class', d => computeLinkClass(d))
+                .attr('d', d => diagonal(d.source, d.target))
+                .on('mouseover', handleLinkMouseOver)
+                .on('mousemove', handleLinkMouseMove)
+                .on('mouseout', handleLinkMouseOut);
+
+            const linkMerge = linkEnter.merge(linkSelection);
+
+            linkMerge
+                .attr('class', d => computeLinkClass(d))
+                .attr('d', d => diagonal(d.source, d.target))
+                .on('mouseover', handleLinkMouseOver)
+                .on('mousemove', handleLinkMouseMove)
+                .on('mouseout', handleLinkMouseOut);
+
+            linkSelection.exit().remove();
+
+            const linksWithLabels = links.filter(d => d.target.data.action_from_parent);
+            const linkLabelSelection = g.selectAll('text.link-label')
+                .data(linksWithLabels, d => d.target.data.id);
+
+            const edgeLabelOpacity = showEdgeLabels ? 1 : 0;
+            const edgeLabelDisplay = showEdgeLabels ? null : 'none';
+
+            const linkLabelEnter = linkLabelSelection.enter().append('text')
+                .attr('class', 'link-label')
+                .attr('dy', '-0.6em')
+                .attr('text-anchor', 'middle');
+
+            const linkLabelMerge = linkLabelEnter.merge(linkLabelSelection);
+
+            linkLabelMerge
+                .text(d => d.target.data.action_from_parent)
+                .attr('transform', d => {
+                    const midX = (d.source.screenX + d.target.screenX) / 2;
+                    const midY = (d.source.screenY + d.target.screenY) / 2;
+                    return `translate(${midX},${midY})`;
+                })
+                .style('opacity', edgeLabelOpacity)
+                .style('display', edgeLabelDisplay);
+
+            linkLabelSelection.exit().remove();
+
+            const visibleNonRootCount = nodes.filter(
+                d => d.data.id !== -1 && !d.data._filteredOut
+            ).length;
+
+            if (timelineSlider) {
+                const sliderValue =
+                    currentMaxNodeIndex >= 0 ? currentMaxNodeIndex + 1 : 0;
+                timelineSlider.value = sliderValue;
+            }
+
+            updateTimelineLabel(visibleNonRootCount);
+
+            updateSidePanelById(selectedNodeId);
+        }
+
+        // Diagonal path generator
+        function diagonal(s, d) {
+            if (layoutOrientation === 'vertical') {
+                const midY = (s.screenY + d.screenY) / 2;
+                return `M ${s.screenX} ${s.screenY}
+                        C ${s.screenX} ${midY},
+                          ${d.screenX} ${midY},
+                          ${d.screenX} ${d.screenY}`;
+            }
+            const midX = (s.screenX + d.screenX) / 2;
+            return `M ${s.screenX} ${s.screenY}
+                    C ${midX} ${s.screenY},
+                      ${midX} ${d.screenY},
+                      ${d.screenX} ${d.screenY}`;
+        }
+        function updateSidePanel(nodeData) {
+            const sidePanel = d3.select('#sidePanel');
+
+            if (!nodeData) {
+                sidePanel.html(`
+                    <div class="detail-section">
+                        <h3>Node Details</h3>
+                        <p>Click on a node to view details</p>
+                    </div>
+                `);
+                return;
+            }
+
+            const baseNode = baseNodesById.get(nodeData.id);
+            const hasChildrenInBase = !!(baseNode && baseNode.children && baseNode.children.length > 0);
+            const isExpanded =
+                hasChildrenInBase &&
+                !manuallyCollapsedNodeIds.has(nodeData.id) &&
+                (expandedNodeIds.has(nodeData.id) || autoExpandedIds.has(nodeData.id));
+
+            let html = `
+                <div class="detail-section">
+                    <h3>Node ${nodeData.id === -1 ? 'ROOT' : nodeData.id}</h3>
+                    <div class="detail-item">
+                        <span class="detail-label">Score:</span>${nodeData.score.toFixed(4)}
+                    </div>
+                    ${nodeData.status ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Status:</span>${nodeData.status}
+                    </div>
+                    ` : ''}
+                    <div class="detail-item">
+                        <span class="detail-label">Depth:</span>${nodeData.depth}
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Parent:</span>${nodeData.parent_id !== null ? nodeData.parent_id : 'None (root)'}
+                    </div>
+                    ${nodeData.action_from_parent ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Action:</span>${nodeData.action_from_parent}
+                    </div>
+                    ` : ''}
+                    ${hasChildrenInBase ? `
+                    <div class="detail-item">
+                        <button id="toggleChildrenButton" data-node-id="${nodeData.id}">
+                            ${isExpanded ? 'Collapse Children' : 'Expand Children'}
+                        </button>
+                    </div>
+                    ` : ''}
+                    ${nodeData.created_at ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Created:</span>${nodeData.created_at}
+                    </div>
+                    ` : ''}
+                    ${nodeData.completed_at ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Completed:</span>${nodeData.completed_at}
+                    </div>
+                    ` : ''}
+                </div>`;
+
+            // State section (moved up)
+            html += `
+                <div class="detail-section">
+                    <h3>State</h3>
+                    <div style="font-size: 13px; word-wrap: break-word;">
+                        ${nodeData.state_repr}
+                    </div>
+                </div>
+            `;
+
+            // Annotations section
+            if (nodeData.annotations && Object.keys(nodeData.annotations).length > 0) {
+                html += `
+                    <div class="detail-section">
+                        <h3>Annotations</h3>
+                        <ul class="metrics-list">
+                `;
+
+                for (const [key, value] of Object.entries(nodeData.annotations)) {
+                    html += `<li><strong>${key}:</strong> ${JSON.stringify(value)}</li>`;
+                }
+
+                html += `
+                        </ul>
+                    </div>
+                `;
+            }
+
+            // Algorithm State
+            if (nodeData.algo_metrics && Object.keys(nodeData.algo_metrics).length > 0) {
+                html += `
+                    <div class="detail-section">
+                        <h3>Algorithm State</h3>
+                        <ul class="metrics-list">
+                `;
+
+                for (const [key, value] of Object.entries(nodeData.algo_metrics)) {
+                    let displayValue = value;
+                    let displayName = key;
+                    if (typeof value === 'object' && value.display_value !== undefined) {
+                        displayValue = value.display_value;
+                    }
+                    if (typeof value === 'object' && value.display_name !== undefined) {
+                        displayName = value.display_name;
+                    }
+
+                    if (typeof displayValue === 'number') {
+                        displayValue = displayValue.toFixed(3);
+                    } else if (typeof displayValue === 'string') {
+                        displayValue = displayValue;
+                    } else {
+                        displayValue = JSON.stringify(displayValue);
+                    }
+                    html += `<li><strong>${displayName}:</strong> ${displayValue}</li>`;
+                }
+
+                html += `
+                        </ul>
+                    </div>
+                `;
+            }
+
+            sidePanel.html(html);
+
+            if (hasChildrenInBase) {
+                const toggleBtn = document.getElementById('toggleChildrenButton');
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', () => {
+                        const nodeId = Number(toggleBtn.dataset.nodeId);
+                        const isExpanded =
+                            expandedNodeIds.has(nodeId) &&
+                            !manuallyCollapsedNodeIds.has(nodeId);
+                        setNodeExpandedState(nodeId, !isExpanded);
+                        selectedNodeId = nodeId;
+                        update();
+                    });
+                }
+            }
+        }
+
+        // Control buttons
+        const fitButton = document.getElementById('fitBtn');
+        if (fitButton) {
+            fitButton.addEventListener('click', () => {
+                fitToScreen();
+            });
+        }
+
+        const edgeLabelToggle = document.getElementById('edgeLabelToggle');
+        if (edgeLabelToggle) {
+            edgeLabelToggle.checked = showEdgeLabels;
+            edgeLabelToggle.addEventListener('change', event => {
+                showEdgeLabels = event.target.checked;
+                update();
+            });
+        }
+
+        const orientationSelect = document.getElementById('orientationSelect');
+        if (orientationSelect) {
+            orientationSelect.value = layoutOrientation;
+            orientationSelect.addEventListener('change', event => {
+                const value = String(event.target.value);
+                layoutOrientation = value === 'horizontal' ? 'horizontal' : 'vertical';
+                update();
+                fitToScreen();
+            });
+        }
+
+        const expandAllButton = document.getElementById('expandAllBtn');
+        if (expandAllButton) {
+            expandAllButton.addEventListener('click', () => {
+                expandedNodeIds.clear();
+                manuallyCollapsedNodeIds.clear();
+                initializeExpandedState(baseTreeData);
+                update();
+            });
+        }
+
+        const collapseAllButton = document.getElementById('collapseAllBtn');
+        if (collapseAllButton) {
+            collapseAllButton.addEventListener('click', () => {
+                expandedNodeIds.clear();
+                manuallyCollapsedNodeIds.clear();
+                expandedNodeIds.add(-1);
+                baseNodesById.forEach((_, nodeId) => {
+                    if (nodeId !== -1) {
+                        manuallyCollapsedNodeIds.add(nodeId);
+                    }
+                });
+                update();
+            });
+        }
+
+        const legendBar = document.getElementById('legendBar');
+        const legendMinLabel = document.getElementById('legendMinLabel');
+        const legendMidLabel = document.getElementById('legendMidLabel');
+        const legendMaxLabel = document.getElementById('legendMaxLabel');
+
+        function updateColorLegend() {
+            if (!legendBar || !colorLegendSamples || colorLegendSamples.length === 0) {
+                return;
+            }
+            if (
+                !colormapStats ||
+                typeof colormapStats.minScore !== 'number' ||
+                typeof colormapStats.maxScore !== 'number'
+            ) {
+                return;
+            }
+
+            const stops = colorLegendSamples.map((sample, idx) => {
+                const pct =
+                    colorLegendSamples.length === 1
+                        ? 0
+                        : (idx / (colorLegendSamples.length - 1)) * 100;
+                return `${sample.color} ${pct}%`;
+            }).join(', ');
+            legendBar.style.background = `linear-gradient(to right, ${stops})`;
+
+            if (legendMinLabel) {
+                legendMinLabel.textContent = colormapStats.minScore.toFixed(3);
+            }
+            if (legendMaxLabel) {
+                legendMaxLabel.textContent = colormapStats.maxScore.toFixed(3);
+            }
+            if (legendMidLabel) {
+                const midpoint =
+                    (colormapStats.minScore + colormapStats.maxScore) / 2;
+                legendMidLabel.textContent = midpoint.toFixed(3);
+            }
+        }
+
+        const searchInput = document.getElementById('search');
+        if (searchInput) {
+            searchInput.addEventListener('input', event => {
+                filterState.searchTerm = event.target.value.trim().toLowerCase();
+                update();
+            });
+        }
+
+        const minScoreInput = document.getElementById('minScore');
+        if (minScoreInput) {
+            minScoreInput.addEventListener('input', event => {
+                const value = parseFloat(event.target.value);
+                filterState.minScore = Number.isNaN(value) ? 0 : Math.min(Math.max(value, 0), 1);
+                update();
+            });
+        }
+
+        const maxDepthInput = document.getElementById('maxDepth');
+        if (maxDepthInput) {
+            maxDepthInput.addEventListener('input', event => {
+                const value = parseInt(event.target.value, 10);
+                filterState.maxDepth = Number.isNaN(value) || value < 0 ? Infinity : value;
+                update();
+            });
+        }
+
+        const timelineSlider = document.getElementById('timelineSlider');
+        timelineLabel = document.getElementById('timelineLabel');
+        const playButton = document.getElementById('playBtn');
+        const pauseButton = document.getElementById('pauseBtn');
+
+        if (sortedNodeIds.length === 0) {
+            if (timelineSlider) {
+                timelineSlider.min = 0;
+                timelineSlider.max = 0;
+                timelineSlider.step = 1;
+                timelineSlider.value = 0;
+                timelineSlider.disabled = true;
+            }
+            currentMaxNodeIndex = -1;
+            currentMaxNodeId = -1;
+        } else if (timelineSlider) {
+            timelineSlider.min = 0;
+            timelineSlider.max = sortedNodeIds.length;
+            timelineSlider.step = 1;
+            timelineSlider.value = sortedNodeIds.length;
+            timelineSlider.disabled = false;
+            currentMaxNodeIndex = sortedNodeIds.length - 1;
+            currentMaxNodeId = sortedNodeIds[currentMaxNodeIndex];
+        }
+
+        function setTimelineIndex(index) {
+            if (sortedNodeIds.length === 0) {
+                currentMaxNodeIndex = -1;
+                currentMaxNodeId = -1;
+                update();
+                return;
+            }
+            const clamped = Math.max(0, Math.min(index, sortedNodeIds.length));
+            if (clamped === 0) {
+                currentMaxNodeIndex = -1;
+                currentMaxNodeId = -1;
+            } else {
+                currentMaxNodeIndex = clamped - 1;
+                currentMaxNodeId = sortedNodeIds[currentMaxNodeIndex];
+            }
+            update();
+        }
+
+        if (timelineSlider) {
+            timelineSlider.addEventListener('input', event => {
+                if (timelineSlider.disabled) {
+                    return;
+                }
+                const value = parseInt(event.target.value, 10);
+                if (!Number.isNaN(value)) {
+                    setTimelineIndex(value);
+                }
+            });
+        }
+
+        let isPlaying = false;
+        let playInterval = null;
+
+        if (playButton) {
+            playButton.addEventListener('click', () => {
+                if (isPlaying || sortedNodeIds.length === 0) return;
+
+                isPlaying = true;
+                playButton.style.display = 'none';
+                if (pauseButton) {
+                    pauseButton.style.display = 'inline-block';
+                }
+
+                let currentValue = currentMaxNodeIndex + 1;
+                if (currentValue >= sortedNodeIds.length) {
+                    currentValue = 0;
+                }
+
+                playInterval = setInterval(() => {
+                    currentValue += 1;
+
+                    if (currentValue > sortedNodeIds.length) {
+                        clearInterval(playInterval);
+                        isPlaying = false;
+                        playButton.style.display = 'inline-block';
+                        if (pauseButton) {
+                            pauseButton.style.display = 'none';
+                        }
+                        return;
+                    }
+
+                    setTimelineIndex(currentValue);
+                }, 150);
+            });
+        }
+
+        if (pauseButton) {
+            pauseButton.addEventListener('click', () => {
+                if (!isPlaying) return;
+
+                isPlaying = false;
+                clearInterval(playInterval);
+                playButton.style.display = 'inline-block';
+                pauseButton.style.display = 'none';
+            });
+        }
+
+        // Draggable side panel width
+        (function setupPanelResizer() {
+            const resizer = document.getElementById('panelResizer');
+            const sidePanelEl = document.getElementById('sidePanel');
+            const containerEl = document.querySelector('.container');
+            if (!resizer || !sidePanelEl || !containerEl) return;
+
+            const MIN_WIDTH = 240;
+            const MIN_MAIN = 300; // keep at least this for the tree area
+            const LS_KEY = 'treequest.sidePanelWidth';
+
+            function clampWidth(target) {
+                const containerWidth = containerEl.getBoundingClientRect().width || window.innerWidth || 960;
+                const maxWidth = Math.max(320, containerWidth - MIN_MAIN);
+                return Math.max(MIN_WIDTH, Math.min(target, maxWidth));
+            }
+
+            // Restore saved width
+            const savedWidth = parseInt(localStorage.getItem(LS_KEY) || '', 10);
+            if (!Number.isNaN(savedWidth) && savedWidth > 0) {
+                sidePanelEl.style.width = clampWidth(savedWidth) + 'px';
+            }
+
+            let isDragging = false;
+            let startX = 0;
+            let startWidth = 0;
+
+            function onMouseDown(e) {
+                isDragging = true;
+                startX = e.clientX;
+                startWidth = sidePanelEl.getBoundingClientRect().width;
+                document.body.classList.add('no-select');
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp, { once: true });
+                e.preventDefault();
+            }
+
+            function onMouseMove(e) {
+                if (!isDragging) return;
+                const dx = startX - e.clientX; // drag left → increase width
+                const nextWidth = clampWidth(startWidth + dx);
+                sidePanelEl.style.width = nextWidth + 'px';
+                // keep SVG sized to the new container width without re-fitting view
+                syncSvgToContainer();
+            }
+
+            function onMouseUp() {
+                if (!isDragging) return;
+                isDragging = false;
+                document.body.classList.remove('no-select');
+                const finalWidth = sidePanelEl.getBoundingClientRect().width;
+                localStorage.setItem(LS_KEY, String(Math.round(finalWidth)));
+                document.removeEventListener('mousemove', onMouseMove);
+            }
+
+            resizer.addEventListener('mousedown', onMouseDown);
+
+            // Re-clamp on window resize
+            window.addEventListener('resize', () => {
+                const w = sidePanelEl.getBoundingClientRect().width;
+                sidePanelEl.style.width = clampWidth(w) + 'px';
+            });
+        })();
+
+        window.addEventListener('resize', () => {
+            syncSvgToContainer();
+            fitToScreen();
+        });
+
+        syncSvgToContainer();
+        update();
+        fitToScreen();
+        updateColorLegend();
+    </script>
+</body>
+</html>

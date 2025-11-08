@@ -42,6 +42,9 @@ for _ in range(10):
 # 4. Extract the best score and state.
 best_state, best_node_score = tq.top_k(search_tree, algo, k=1)[0]
 print(f"Best state: {best_state}, Score: {best_node_score}")
+
+# 5. Visualize the search tree.
+tq.render(search_tree, "ab_mcts_a_search_tree", format="html")
 ```
 
 Alternatively, you can use an ask–tell interface with batched AB-MCTS sampling steps:
@@ -121,7 +124,7 @@ def generate(parent_state: State | None) -> tuple[State, float]:
         state = refine_answer(parent_state.llm_answer, parent_state.score)
 
     return state, state.score
-    
+
 def initial_generation() -> State:
     """
     Call LLM API to generate an initial answer.
@@ -220,6 +223,49 @@ for _ in range(30):
 
 **NOTE**: To run AB-MCTS-M, you need to install extra dependencies with the `treequest[abmcts-m]` option.
 
+## Visualization
+TreeQuest provides visualization utilities to render the search tree. You can visualize the search tree using the `tq.render` function as shown in the Quick Start section.
+
+```python
+import base64
+from io import BytesIO
+
+import treequest as tq
+from PIL import Image
+
+class State:
+    text: str
+    image: Image.Image
+
+def state_formatter_html(state: State) -> str:
+    """Formats the state for HTML visualization."""
+    buffer = BytesIO()
+    state.image.save(buffer, format="PNG")
+    img_str = base64.b64encode(buffer.getvalue()).decode()
+    # HTML representation is allowed
+    return f'<div><p>{state.text}</p><br/><img src="data:image/png;base64,{img_str}" width=100% /></div>'
+
+algo = tq.ABMCTSA()
+search_tree = algo.init_tree()
+for _ in range(10):
+    search_tree = algo.step(search_tree, generate_fns)
+
+tq.render(
+    search_tree,
+    output_basename="search_tree",
+    format="pdf",  # For "pdf", "svg", "png", "jpg" and "jpeg" formats, using graphviz
+    state_formatter=lambda state: state.text,  # For non-HTML formats, use text only
+)
+tq.render(
+    search_tree,
+    output_basename="search_tree",
+    format="html",  # For HTML format, use HTML with d3.js visualization
+    state_formatter=state_formatter_html,  # Use HTML formatter
+)
+```
+
+> IMPORTANT: When using HTML format, ensure that the HTML file is securely handled, especially if the state formatter includes raw HTML content. Avoid opening untrusted HTML files in your browser.
+
 ## Requirements
 
 - Python 3.11+
@@ -230,14 +276,24 @@ Contributions are welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for d
 
 ## Citation
 ```bibtex
-@article{inoue2025wider,
-  title={Wider or Deeper? Scaling LLM Inference-Time Compute with Adaptive Branching Tree Search},
-  author={Inoue, Yuichi and Misaki, Kou and Imajuku, Yuki and Kuroki, So and Nakamura, Taishi and Akiba, Takuya},
-  journal={arXiv preprint arXiv:2503.04412},
-  year={2025}
+@inproceedings{inoue2025wider,
+  title={Wider or Deeper?  Scaling {LLM} Inference-Time Compute with Adaptive Branching Tree Search},
+  author={Yuichi Inoue and Kou Misaki and Yuki Imajuku and So Kuroki and Taishi Nakamura and Takuya Akiba},
+  booktitle={The Thirty-ninth Annual Conference on Neural Information Processing Systems},
+  year={2025},
+  url={https://openreview.net/forum?id=jAsr5GHt3P}
 }
 ```
 
 ## License
 
 [Apache 2.0](./LICENSE)
+
+### Third-party notices
+
+TreeQuest bundles a few assets whose original authors retain copyright:
+
+- **D3.js v7** by Mike Bostock and contributors, distributed under the ISC License. The full license text is included in `src/treequest/vis/assets/d3.LICENSE.txt` alongside the `d3.v7.min.js` binary.
+- **Colormap samples** extracted from matplotlib and seaborn. The data and license references are embedded in `src/treequest/vis/assets/colormaps.json`.
+
+These notices must be preserved in any redistribution of TreeQuest or its compiled artifacts.

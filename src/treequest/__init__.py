@@ -20,6 +20,7 @@ from .algos.base import Algorithm
 from .algos.standard_mcts import StandardMCTS
 from .algos.tree_of_thought_bfs import TreeOfThoughtsBFSAlgo
 from .ranker import top_k
+from .vis import render
 
 __all__ = [
     "StandardMCTS",
@@ -28,4 +29,5 @@ __all__ = [
     "ABMCTSA",
     "ABMCTSM",
     "Algorithm",
+    "render",
 ]

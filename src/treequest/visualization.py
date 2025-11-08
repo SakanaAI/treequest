@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional
 
 import graphviz  # type: ignore
@@ -16,6 +17,22 @@ def visualize_tree_graphviz(
     """
     Visualize a Tree using Graphviz.
 
+    .. deprecated:: 0.2.0
+        This is a legacy API maintained for backward compatibility.
+        For new code, use the `treequest.vis` module which provides:
+        - Multiple output formats (HTML, Mermaid, JSON, YAML)
+        - Interactive HTML visualization with time-based exploration
+        - Algorithm-specific metrics display
+        - Better integration with trial information
+
+        Example::
+
+            from treequest import vis
+            vis.render(state, output_basename="output", format="html")
+
+    This is the legacy API maintained for backward compatibility.
+    For new code, consider using treequest.vis module for more features.
+
     Args:
         tree: The Tree object to visualize
         save_path: Optional path to save the visualization (without extension)
@@ -27,6 +44,15 @@ def visualize_tree_graphviz(
     Returns:
         Graphviz Digraph object
     """
+    # Emit deprecation warning
+    warnings.warn(
+        "visualize_tree_graphviz() is deprecated and will be removed in a future version. "
+        "Please use treequest.vis.render() instead for more features and better integration. "
+        "See: https://docs.treequest.dev/visualization",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     try:
         # Create a directed graph
         dot = graphviz.Digraph(comment=title or "Tree Visualization")
