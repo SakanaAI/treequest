@@ -28,3 +28,8 @@ uv run pytest tests -n auto
 ```
 uv run ruff format
 ```
+
+## Static type checking
+```
+uv run mypy .
+```

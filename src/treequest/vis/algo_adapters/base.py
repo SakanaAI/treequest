@@ -5,7 +5,7 @@ from typing import Any, Dict, Protocol, TypeVar
 from treequest.algos.tree import Node
 
 StateT = TypeVar("StateT")
-AlgoStateT = TypeVar("AlgoStateT")
+AlgoStateT = TypeVar("AlgoStateT", contravariant=True)
 
 
 class VisualizerAdapter(Protocol[StateT, AlgoStateT]):

@@ -88,8 +88,8 @@ def render_html(
         # Load template
         template_str = _get_template()
 
-        # Convert snapshot to JSON string
-        snapshot_json = snapshot_to_json_string(snapshot, indent=None)
+        # Convert snapshot to JSON string (no pretty-printing for compact HTML)
+        snapshot_json = snapshot_to_json_string(snapshot, indent=0)
 
         # Calculate score range for colormap
         scores = [node.score for node in snapshot.nodes if node.score >= 0]

@@ -103,10 +103,13 @@ def build_snapshot(
         if node.is_root():
             state_repr = "ROOT"
         else:
+            node_state = node.state
+            if node_state is None:
+                raise InvalidStateError("Non-root node must have an associated state.")
             try:
-                state_repr = state_formatter(node.state)
+                state_repr = state_formatter(node_state)
             except Exception:
-                state_repr = str(node.state)
+                state_repr = str(node_state)
 
         # Extract algorithm-specific metrics
         algo_metrics: Dict[str, Any] = {}
@@ -175,12 +178,14 @@ def build_snapshot(
     # Create snapshot with metadata
     additional_metadata = annotations or {}
 
-    snapshot = VisualizationSnapshot.create_with_metadata(
-        nodes=node_snapshots,
-        edges=edges,
-        trials=trial_snapshots,
-        algorithm_name=algorithm_name,
-        additional_metadata=additional_metadata,
+    snapshot: VisualizationSnapshot[StateT] = (
+        VisualizationSnapshot.create_with_metadata(
+            nodes=node_snapshots,
+            edges=edges,
+            trials=trial_snapshots,
+            algorithm_name=algorithm_name,
+            additional_metadata=additional_metadata,
+        )
     )
 
     return snapshot

@@ -12,7 +12,7 @@ def color_tuple_to_hex(color: Tuple[int, int, int]) -> str:
 def hex_to_color_tuple(hex_color: str) -> Tuple[int, int, int]:
     """Convert a hex color string to an (R, G, B) tuple."""
     hex_color = hex_color.lstrip("#")
-    return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+    return (int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16))
 
 
 class ColorMap(abc.ABC):

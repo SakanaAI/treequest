@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from treequest.algos.ab_mcts_a.algo import ABMCTSA
+from treequest.algos.ab_mcts_a.algo import ABMCTSA, ABMCTSAAlgoState
 from treequest.algos.ab_mcts_m.algo import ABMCTSMState
 from treequest.algos.ab_mcts_m.pymc_interface import Observation
 from treequest.algos.best_first_search import BFSHeapItem, BFSState
@@ -20,13 +20,16 @@ from treequest.vis.algo_adapters.standard_mcts import StandardMCTSAdapter
 from treequest.vis.algo_adapters.tree_of_thoughts_bfs import (
     TreeOfThoughtsBFSAdapter,
 )
+from treequest.types import GenerateFnType
+
+StateType = str
 
 
 def test_ab_mcts_a_adapter_reports_action_probas() -> None:
-    algo = ABMCTSA()
-    state = algo.init_tree()
+    algo: ABMCTSA[StateType] = ABMCTSA()
+    state: ABMCTSAAlgoState[StateType] = algo.init_tree()
 
-    generate_fns = {
+    generate_fns: dict[str, GenerateFnType[StateType]] = {
         "explore": lambda parent: ("explore", 0.8),
         "exploit": lambda parent: ("exploit", 0.3),
     }
@@ -41,11 +44,11 @@ def test_ab_mcts_a_adapter_reports_action_probas() -> None:
 
 
 def test_ab_mcts_m_adapter_aggregates_descendant_observations() -> None:
-    tree = Tree.with_root_node()
+    tree: Tree[StateType] = Tree.with_root_node()
     child = tree.add_node(("s", 0.6), tree.root)
     grandchild = tree.add_node(("s2", 0.4), child)
 
-    state = ABMCTSMState(tree=tree)
+    state: ABMCTSMState[StateType] = ABMCTSMState(tree=tree)
     state.all_observations[child.expand_idx] = Observation(
         reward=0.6, action="grow", node_expand_idx=child.expand_idx
     )
@@ -62,8 +65,8 @@ def test_ab_mcts_m_adapter_aggregates_descendant_observations() -> None:
 
 
 def test_multi_armed_bandit_adapter_reports_global_stats() -> None:
-    tree = Tree.with_root_node()
-    state = UCBState(tree=tree)
+    tree: Tree[StateType] = Tree.with_root_node()
+    state: UCBState[StateType] = UCBState(tree=tree)
     state.scores_by_action["a"] = [0.4, 0.6]
     state.scores_by_action["b"] = [0.2]
 
@@ -76,16 +79,17 @@ def test_multi_armed_bandit_adapter_reports_global_stats() -> None:
 
 
 def test_tree_of_thoughts_adapter_currently_no_specific_metrics() -> None:
-    state = ToTBFSState(tree=Tree.with_root_node())
+    tree: Tree[str] = Tree.with_root_node()
+    state: ToTBFSState[str] = ToTBFSState(tree=tree)
     adapter = TreeOfThoughtsBFSAdapter()
     metrics = adapter.extract_node_metrics(state, state.tree.root)
     assert metrics == {}
 
 
 def test_best_first_search_adapter_reports_queue_details() -> None:
-    tree = Tree.with_root_node()
+    tree: Tree[StateType] = Tree.with_root_node()
     child = tree.add_node(("s", 0.7), tree.root)
-    state = BFSState(tree=tree)
+    state: BFSState[StateType] = BFSState(tree=tree)
     state.leaves.append(BFSHeapItem(node=child, score=0.7))
     state.trial_store.fill_nodes_queue([(child, "expand")])
 
@@ -98,9 +102,9 @@ def test_best_first_search_adapter_reports_queue_details() -> None:
 
 
 def test_standard_mcts_adapter_defaults_and_queue() -> None:
-    tree = Tree.with_root_node()
+    tree: Tree[StateType] = Tree.with_root_node()
     child = tree.add_node(("s", 0.5), tree.root)
-    state = MCTSState(tree=tree)
+    state: MCTSState[StateType] = MCTSState(tree=tree)
     state.visit_counts[child.expand_idx] = 2
     state.value_sums[child.expand_idx] = 1.0
     state.priors[child.expand_idx] = 0.25
