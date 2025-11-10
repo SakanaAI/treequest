@@ -1,5 +1,7 @@
 """High-level API for tree visualization."""
 
+import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
 from treequest.vis.build_snapshot import build_snapshot
@@ -16,13 +18,13 @@ AlgoStateT = TypeVar("AlgoStateT")
 
 def render(
     obj: Union[AlgoStateT, VisualizationSnapshot[StateT]],
-    output_basename: Optional[str] = None,
+    output_basename: str,
     *,
     format: str,
     state_formatter: Optional[Callable[[StateT], str]] = None,
     annotations: Optional[Dict[str, Any]] = None,
     **renderer_kwargs,
-) -> Optional[str]:
+) -> None:
     """
     High-level API to render a tree visualization.
 
@@ -32,8 +34,8 @@ def render(
     Args:
         obj: Algorithm state (e.g., MCTSState, BFSState) or a VisualizationSnapshot.
              Provide either of these.
-        output_basename: Output file path without extension. If None and format
-                        supports it (e.g., mermaid), returns a string.
+        output_basename: Output file path without extension. If an existing directory is provided,
+                         a timestamped filename (treequest_YYYYMMDD_HHMMSS) will be generated inside it.
         format: Output format. Supported values:
                - "png", "pdf", "svg", "jpg", "jpeg": Graphviz formats
                - "json", "yaml": Data export formats
@@ -42,10 +44,6 @@ def render(
         state_formatter: Optional function to format node states
         annotations: Optional annotations to add to snapshot metadata
         **renderer_kwargs: Additional keyword arguments passed to the renderer
-
-    Returns:
-        For formats that support string output (mermaid), returns the string.
-        For file-based formats, returns None.
 
     Raises:
         VisualizationError: If inputs are invalid or rendering fails
@@ -63,8 +61,8 @@ def render(
         >>> # Render to PNG
         >>> tq.render(state, "logs/tree", format="png")
         >>>
-        >>> # Get Mermaid diagram as string
-        >>> diagram = tq.render(state, format="mermaid")
+        >>> # Render a Mermaid diagram (Markdown format)
+        >>> tq.render(state, "logs", format="md")
     """
     # Validate and resolve input object → snapshot
     if isinstance(obj, VisualizationSnapshot):
@@ -74,45 +72,29 @@ def render(
             obj, state_formatter=state_formatter, annotations=annotations
         )
 
-    # Normalize format
-    format = format.lower()
+    output_path = Path(output_basename)
+    if output_path.is_dir():  # Generate filename with timestamp
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y%m%d_%H%M%S"
+        )
+        output_path = output_path / f"treequest_{timestamp}"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_basename = str(output_path)
 
     # Route to appropriate renderer
-    if format in ["png", "pdf", "svg", "jpg", "jpeg"]:
-        # Graphviz formats
-        if output_basename is None:
-            raise VisualizationError(
-                f"output_basename is required for format '{format}' (Graphviz)"
-            )
+    format = format.lower()
+    if format in ["png", "pdf", "svg", "jpg", "jpeg"]:  # Graphviz formats
         render_graphviz(snapshot, output_basename, format=format, **renderer_kwargs)
-        return None
-    elif format in ["json", "yaml"]:
-        # Data export formats
-        if output_basename is None:
-            raise VisualizationError(
-                f"output_basename is required for format '{format}'"
-            )
+    elif format in ["json", "yaml"]:  # Data export formats
         dump_snapshot(snapshot, output_basename, format=format, **renderer_kwargs)
-        return None
-    elif format in ["mermaid", "md", "markdown"]:
-        # Mermaid diagram
-        result = render_mermaid(
-            snapshot, output_basename, format=format, **renderer_kwargs
-        )
-        return result
-    elif format == "html":
-        # HTML renderer
+    elif format in ["mermaid", "md", "markdown"]:  # Mermaid diagram
+        render_mermaid(snapshot, output_basename, format=format, **renderer_kwargs)
+    elif format == "html":  # HTML renderer
         try:
-            if output_basename is None:
-                raise VisualizationError(
-                    "output_basename is required for format 'html'"
-                )
             render_html(snapshot, output_basename, format=format, **renderer_kwargs)
-            return None
         except ImportError:
             raise VisualizationError(
-                "HTML rendering requires jinja2. "
-                "Install it with: pip install treequest[vis-interactive]"
+                "HTML rendering requires jinja2. Install it with: pip install treequest[vis-interactive]"
             )
     else:
         raise VisualizationError(

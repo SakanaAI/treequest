@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import random
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -62,18 +63,10 @@ def test_render_mermaid():
     """Test rendering to Mermaid format."""
     state = create_test_state()
 
-    # Render without output file (returns string)
-    result = render(state, format="mermaid")
-
-    assert result is not None
-    assert "graph TD" in result
-    assert "node-1" in result or "node0" in result
-
     # Render to file
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "test"
-        result = render(state, output_basename=str(output_path), format="mermaid")
-
+        render(state, output_basename=str(output_path), format="mermaid")
         mermaid_file = Path(str(output_path) + ".mermaid")
         assert mermaid_file.exists()
 
@@ -82,11 +75,15 @@ def test_render_mermaid_with_max_nodes():
     """Test rendering Mermaid with node limit."""
     state = create_test_state()
 
-    result = render(state, format="mermaid", max_nodes=3)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = Path(tmpdir) / "test"
+        render(state, output_basename=str(output_path), format="mermaid", max_nodes=3)
+        mermaid_file = Path(str(output_path) + ".mermaid")
+        assert mermaid_file.exists()
 
-    # Count node definition lines only (avoid counting edges/style directives)
-    import re
-
+        # Count node definition lines only (avoid counting edges/style directives)
+        with open(mermaid_file) as f:
+            result = f.read()
     defs = re.findall(r"^\s*node-?\d+\[", result, flags=re.MULTILINE)
     assert len(defs) <= 3
 

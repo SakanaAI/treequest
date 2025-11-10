@@ -8,7 +8,6 @@ from treequest.vis.renderers.color_utils import (
     ROOT_COLOR,
     ColorMap,
     apply_status_color,
-    expand_score_range,
     resolve_colormap,
 )
 
@@ -58,7 +57,9 @@ def render_graphviz(
     scores = [node.score for node in snapshot.nodes if node.score >= 0]
     min_score = min(scores) if scores else 0.0
     max_score = max(scores) if scores else 1.0
-    min_score, max_score = expand_score_range(min_score, max_score)
+    if min_score == max_score:  # Expand range to avoid division by zero
+        max_score = max_score + 0.5
+        min_score = min_score - 0.5
 
     # Resolve color_map to a callable
     color_fn = resolve_colormap(color_map, min_score, max_score)

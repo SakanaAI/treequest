@@ -30,6 +30,8 @@ class GrayscaleColorMap(ColorMap):
     def __init__(self, min_value: float, max_value: float):
         self.min_value = min_value
         self.max_value = max_value
+        if min_value >= max_value:
+            raise ValueError("min_value must be less than max_value")
 
     def get_color_tuple(self, value: float) -> Tuple[int, int, int]:
         """Map a value to a grayscale color."""
@@ -121,7 +123,7 @@ def _load_colormap_data() -> Dict[str, Any]:
     return _COLORMAP_DATA_CACHE
 
 
-def list_colormaps() -> List[str]:
+def list_colormap_names() -> List[str]:
     """List all available colormap names.
 
     Returns:
@@ -160,13 +162,13 @@ def get_colormap(
         raise ValueError(
             f"Colormap '{name}' not found. "
             f"Available colormaps: {', '.join(available[:5])}... "
-            f"(total {len(available)}). Use list_colormaps() for full list."
+            f"(total {len(available)}). Use list_colormap_names() for full list."
         )
 
-    color_data = data["colormaps"][name]["colors"]
+    color_data: List[Tuple[int, int, int]] = data["colormaps"][name]["colors"]
 
     # Convert list of lists to list of tuples
-    color_tuples = [tuple(c) for c in color_data]
+    color_tuples = [(r, g, b) for r, g, b in color_data]
 
     return InterpolatedColorMap(
         color_data=color_tuples,
@@ -256,15 +258,3 @@ def apply_status_color(status: Optional[str], default_color: str = ROOT_COLOR) -
     if status == "ROOT":
         return ROOT_COLOR
     return default_color
-
-
-def expand_score_range(
-    min_value: float,
-    max_value: float,
-    buffer: float = 0.5,
-) -> Tuple[float, float]:
-    """Guarantee a non-zero color range, even for uniform scores."""
-
-    if max_value <= min_value:
-        return min_value - buffer, max_value + buffer
-    return min_value, max_value

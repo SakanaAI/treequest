@@ -1,27 +1,21 @@
 """Mermaid diagram renderer for tree visualization."""
 
-from pathlib import Path
 from typing import Callable, Optional, Union
 
 from treequest.vis.errors import RenderError
 from treequest.vis.snapshot import VisualizationSnapshot
-from treequest.vis.renderers.color_utils import (
-    ROOT_COLOR,
-    ColorMap,
-    expand_score_range,
-    resolve_colormap,
-)
+from treequest.vis.renderers.color_utils import ROOT_COLOR, ColorMap, resolve_colormap
 
 
 def render_mermaid(
     snapshot: VisualizationSnapshot,
-    output_basename: Optional[str] = None,
+    output_basename: str,
     *,
     format: str = "mermaid",
     theme: str = "default",
     max_nodes: Optional[int] = None,
     color_map: Optional[Union[str, ColorMap, Callable[[float], str]]] = None,
-) -> str:
+) -> None:
     """
     Render a visualization snapshot as a Mermaid diagram.
 
@@ -38,9 +32,6 @@ def render_mermaid(
             - str: Colormap name (e.g., 'viridis', 'coolwarm')
             - ColorMap instance: Custom colormap
             - Callable[[float], str]: Custom function mapping score to hex color
-
-    Returns:
-        Mermaid diagram as a string
 
     Raises:
         RenderError: If rendering fails
@@ -70,7 +61,9 @@ def render_mermaid(
         scores = [node.score for node in nodes if node.score >= 0]
         min_score = min(scores) if scores else 0.0
         max_score = max(scores) if scores else 1.0
-        min_score, max_score = expand_score_range(min_score, max_score)
+        if min_score == max_score:  # Expand range to avoid division by zero
+            max_score = max_score + 0.5
+            min_score = min_score - 0.5
 
         # Resolve color_map to a callable
         color_fn = resolve_colormap(color_map, min_score, max_score)
@@ -125,16 +118,8 @@ def render_mermaid(
             mermaid_str = f"```mermaid\n{mermaid_str}\n```"
 
         # Write to file if output_basename is provided
-        if output_basename:
-            output_path = Path(output_basename)
-            ext = ".md" if format in ["md", "markdown"] else ".mermaid"
-            if not str(output_path).endswith(ext):
-                output_path = Path(str(output_path) + ext)
-
-            with open(output_path, "w") as f:
-                f.write(mermaid_str)
-
-        return mermaid_str
-
+        ext = ".md" if format in ["md", "markdown"] else ".mermaid"
+        with open(output_basename + ext, "w") as f:
+            f.write(mermaid_str)
     except Exception as e:
         raise RenderError(f"Failed to render Mermaid diagram: {e}")

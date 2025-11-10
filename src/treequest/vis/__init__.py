@@ -18,13 +18,14 @@ Example usage:
     >>> # ... run algorithm ...
     >>>
     >>> # Simple high-level API
+    >>> # HTML output (writes output.html)
     >>> tq.render(state, output_basename="output", format="html")
+    >>> # PNG output (writes output.png)
     >>> tq.render(state, output_basename="output", format="png")
+    >>> # Mermaid diagram (writes output.mermaid)
+    >>> tq.render(state, output_basename="output", format="mermaid")
     >>>
-    >>> # Get Mermaid diagram as string
-    >>> diagram = tq.render(state, format="mermaid")
-    >>>
-    >>> # Low-level API with custom formatting
+    >>> # Low-level API
     >>> snapshot = vis.build_snapshot(
     ...     state,
     ...     state_formatter=lambda s: str(s)[:10],

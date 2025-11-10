@@ -20,7 +20,7 @@ def test_build_snapshot_standard_mcts():
             try:
                 parent_score = float(state.split("score=")[1].split(")")[0])
             except (IndexError, ValueError):
-                pass
+                pass  # Use default if parsing fails
         score = min(parent_score + random.uniform(-0.1, 0.3), 1.0)
         return f"High(score={score:.2f})", score
 
@@ -30,7 +30,7 @@ def test_build_snapshot_standard_mcts():
             try:
                 parent_score = float(state.split("score=")[1].split(")")[0])
             except (IndexError, ValueError):
-                pass
+                pass  # Use default if parsing fails
         score = min(max(parent_score + random.uniform(-0.3, 0.1), 0.0), 1.0)
         return f"Low(score={score:.2f})", score
 

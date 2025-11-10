@@ -4,12 +4,11 @@ import pytest
 
 from treequest.vis.renderers.color_utils import (
     color_tuple_to_hex,
-    expand_score_range,
     get_colormap,
     hex_to_color_tuple,
     GrayscaleColorMap,
     InterpolatedColorMap,
-    list_colormaps,
+    list_colormap_names,
 )
 
 
@@ -108,8 +107,8 @@ class TestInterpolatedColorMap:
 class TestColormapLoading:
     """Test colormap data loading and factory functions."""
 
-    def test_list_colormaps(self):
-        colormaps = list_colormaps()
+    def test_list_colormap_names(self):
+        colormaps = list_colormap_names()
         assert isinstance(colormaps, list)
         assert len(colormaps) > 0
         assert "viridis" in colormaps
@@ -168,7 +167,7 @@ class TestColormapIntegration:
 
     def test_full_workflow(self):
         """Test complete workflow from listing to using colormaps."""
-        available = list_colormaps()
+        available = list_colormap_names()
         assert len(available) > 0
 
         cmap_name = available[0]
@@ -200,12 +199,3 @@ def test_original_colormap_is_available() -> None:
         color = cmap.get_color_tuple(probe)
         assert len(color) == 3
         assert all(0 <= channel <= 255 for channel in color)
-
-
-def test_expand_score_range_handles_uniform_values() -> None:
-    adjusted_min, adjusted_max = expand_score_range(0.5, 0.5)
-    assert pytest.approx(adjusted_min) == 0.0
-    assert pytest.approx(adjusted_max) == 1.0
-
-    unchanged = expand_score_range(-1.0, 2.0)
-    assert unchanged == (-1.0, 2.0)

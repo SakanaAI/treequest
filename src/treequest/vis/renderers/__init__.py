@@ -8,9 +8,8 @@ from treequest.vis.renderers.color_utils import (
     ColorMap,
     GrayscaleColorMap,
     InterpolatedColorMap,
-    expand_score_range,
     get_colormap,
-    list_colormaps,
+    list_colormap_names,
     resolve_colormap,
 )
 
@@ -22,8 +21,7 @@ __all__ = [
     "ColorMap",
     "GrayscaleColorMap",
     "InterpolatedColorMap",
-    "expand_score_range",
     "get_colormap",
-    "list_colormaps",
+    "list_colormap_names",
     "resolve_colormap",
 ]

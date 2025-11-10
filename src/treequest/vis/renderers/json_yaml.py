@@ -2,7 +2,6 @@
 
 import dataclasses
 import json
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from treequest.vis.errors import (
@@ -88,20 +87,8 @@ def dump_snapshot(
     except Exception as e:
         raise RenderError(f"Failed to convert snapshot to dictionary: {e}")
 
-    # Determine output path
-    output_path = Path(output_basename)
-    if output_path.is_dir():
-        # Generate filename with timestamp
-        from datetime import datetime, timezone
-
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        output_path = output_path / f"treequest_{timestamp}.{format}"
-    else:
-        # Add extension if not present
-        if not str(output_path).endswith(f".{format}"):
-            output_path = Path(str(output_path) + f".{format}")
-
     # Serialize
+    output_path = f"{output_basename}.{format}"
     try:
         if format == "json":
             with open(output_path, "w") as f:
