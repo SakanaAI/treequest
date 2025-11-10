@@ -1,7 +1,7 @@
 """Visualization adapters for tree search algorithms."""
 
 import warnings
-from typing import Dict, TypeVar
+from typing import Dict, Optional, TypeVar
 
 from treequest.algos.ab_mcts_m._ab_mcts_m_imports import _import as _ab_mcts_m_import
 from treequest.vis.algo_adapters.ab_mcts_a import ABMCTSAAdapter
@@ -44,7 +44,7 @@ def register_adapter(state_type_name: str, adapter: VisualizerAdapter) -> None:
     _ADAPTER_REGISTRY[state_type_name] = adapter
 
 
-def get_adapter(algo_state: StateT) -> VisualizerAdapter | None:
+def get_adapter(algo_state: StateT) -> Optional[VisualizerAdapter]:
     """
     Get the appropriate adapter for a given algorithm state.
 

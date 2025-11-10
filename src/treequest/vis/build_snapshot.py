@@ -1,6 +1,6 @@
 """Functions for building visualization snapshots from algorithm states."""
 
-from typing import Any, Callable, Dict, List, Optional, TypeVar
+from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 from treequest.algos.tree import Tree
 from treequest.trial import Trial, TrialStore, TrialStoreWithNodeQueue
@@ -45,9 +45,9 @@ def build_snapshot(
     tree: Tree = state.tree
 
     # Get trial store if available
-    trial_store: Optional[TrialStore | TrialStoreWithNodeQueue] = None
-    finished_trials: Dict[str, Trial] | None = None
-    running_trials: Dict[str, Trial] | None = None
+    trial_store: Optional[Union[TrialStore, TrialStoreWithNodeQueue]] = None
+    finished_trials: Optional[Dict[str, Trial]] = None
+    running_trials: Optional[Dict[str, Trial]] = None
 
     if hasattr(state, "trial_store"):
         trial_store = state.trial_store

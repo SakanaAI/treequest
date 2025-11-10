@@ -242,7 +242,7 @@ def state_formatter_html(state: State) -> str:
     buffer = BytesIO()
     state.image.save(buffer, format="PNG")
     img_str = base64.b64encode(buffer.getvalue()).decode()
-    # HTML representation is allowed
+    # HTML representation is allowed (ensure safety when using untrusted content)
     return f'<div><p>{state.text}</p><br/><img src="data:image/png;base64,{img_str}" width=100% /></div>'
 
 algo = tq.ABMCTSA()

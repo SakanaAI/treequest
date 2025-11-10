@@ -4,7 +4,7 @@ import dataclasses
 from datetime import datetime, timezone
 from functools import lru_cache
 from importlib import metadata as importlib_metadata
-from typing import Any, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from treequest.types import NodeId, TrialId
 
@@ -41,8 +41,8 @@ class NodeSnapshot:
 
     # Extensible data
     annotations: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    algo_metrics: Dict[str, bool | int | float | str | AlgoMetrics] = dataclasses.field(
-        default_factory=dict
+    algo_metrics: Dict[str, Union[bool, int, float, str, AlgoMetrics]] = (
+        dataclasses.field(default_factory=dict)
     )
 
 

@@ -3,7 +3,7 @@
 import math
 import statistics
 from dataclasses import dataclass
-from typing import Any, Dict, TypeVar
+from typing import Any, Dict, Optional, TypeVar
 
 from treequest.algos.multi_armed_bandit_ucb import UCBState
 from treequest.algos.tree import Node
@@ -14,11 +14,11 @@ StateT = TypeVar("StateT")
 @dataclass
 class _ActionStats:
     length: int
-    minimum: float | None
-    maximum: float | None
-    mean: float | None
-    median: float | None
-    stdev: float | None
+    minimum: Optional[float] = None
+    maximum: Optional[float] = None
+    mean: Optional[float] = None
+    median: Optional[float] = None
+    stdev: Optional[float] = None
 
     def format(self) -> str:
         if (
@@ -57,14 +57,7 @@ class MultiArmedBanditUCBAdapter:
         for action, scores in algo_state.scores_by_action.items():
             length = len(scores)
             if length == 0:
-                actions[action] = _ActionStats(
-                    length=0,
-                    minimum=None,
-                    maximum=None,
-                    mean=None,
-                    median=None,
-                    stdev=None,
-                )
+                actions[action] = _ActionStats(length=0)
             else:
                 actions[action] = _ActionStats(
                     length=length,

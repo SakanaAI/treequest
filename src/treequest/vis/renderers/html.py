@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 from treequest.vis.errors import DependencyNotFoundError, RenderError
 from treequest.vis.renderers.json_yaml import snapshot_to_json_string
@@ -96,10 +96,7 @@ def render_html(
         max_score = max(scores) if scores else 1.0
         score_all_same = False
         if min_score > max_score:
-            min_score, max_score = (
-                max_score,
-                min_score,
-            )  # Swap if inverted (never should happen)
+            raise RuntimeError("Inconsistent score range: min_score > max_score")
         elif min_score == max_score:  # Expand range to avoid division by zero
             score_all_same = True
             max_score = max_score + 0.5
@@ -109,7 +106,7 @@ def render_html(
         color_fn = resolve_colormap(color_map, min_score, max_score)
 
         # Pre-compute node colors for client-side rendering
-        node_colors: dict[int, str] = {}
+        node_colors: Dict[int, str] = {}
         for node in snapshot.nodes:
             if node.id == -1 or node.score < 0:
                 base_color = ROOT_COLOR
@@ -120,7 +117,7 @@ def render_html(
         node_colors_json = json.dumps(node_colors)
 
         sample_count = 100
-        legend_samples: list[dict[str, float | str]] = []
+        legend_samples: List[Dict[str, Union[float, str]]] = []
 
         if score_all_same:
             color_value = color_fn(min_score)

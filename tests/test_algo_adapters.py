@@ -1,6 +1,6 @@
 """Tests for visualization algorithm adapters."""
 
-from __future__ import annotations
+from typing import Dict
 
 from treequest.algos.ab_mcts_a.algo import ABMCTSA, ABMCTSAAlgoState
 from treequest.algos.ab_mcts_m.algo import ABMCTSMState
@@ -29,7 +29,7 @@ def test_ab_mcts_a_adapter_reports_action_probas() -> None:
     algo: ABMCTSA[StateType] = ABMCTSA()
     state: ABMCTSAAlgoState[StateType] = algo.init_tree()
 
-    generate_fns: dict[str, GenerateFnType[StateType]] = {
+    generate_fns: Dict[str, GenerateFnType[StateType]] = {
         "explore": lambda parent: ("explore", 0.8),
         "exploit": lambda parent: ("exploit", 0.3),
     }
