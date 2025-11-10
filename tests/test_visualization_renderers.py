@@ -84,8 +84,8 @@ def test_render_mermaid_with_max_nodes():
         # Count node definition lines only (avoid counting edges/style directives)
         with open(mermaid_file) as f:
             result = f.read()
-    defs = re.findall(r"^\s*node-?\d+\[", result, flags=re.MULTILINE)
-    assert len(defs) <= 3
+        defs = re.findall(r"^\s*node-?\d+\[", result, flags=re.MULTILINE)
+        assert len(defs) <= 3
 
 
 def test_render_graphviz_honors_dot_availability():

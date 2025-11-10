@@ -57,6 +57,11 @@ def render_graphviz(
     scores = [node.score for node in snapshot.nodes if node.score >= 0]
     min_score = min(scores) if scores else 0.0
     max_score = max(scores) if scores else 1.0
+    if min_score > max_score:
+        min_score, max_score = (
+            max_score,
+            min_score,
+        )  # Swap if inverted (never should happen)
     if min_score == max_score:  # Expand range to avoid division by zero
         max_score = max_score + 0.5
         min_score = min_score - 0.5

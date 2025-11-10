@@ -94,7 +94,14 @@ def render_html(
         scores = [node.score for node in snapshot.nodes if node.score >= 0]
         min_score = min(scores) if scores else 0.0
         max_score = max(scores) if scores else 1.0
-        if min_score == max_score:  # Expand range to avoid division by zero
+        score_all_same = False
+        if min_score > max_score:
+            min_score, max_score = (
+                max_score,
+                min_score,
+            )  # Swap if inverted (never should happen)
+        elif min_score == max_score:  # Expand range to avoid division by zero
+            score_all_same = True
             max_score = max_score + 0.5
             min_score = min_score - 0.5
 
@@ -115,7 +122,7 @@ def render_html(
         sample_count = 100
         legend_samples: list[dict[str, float | str]] = []
 
-        if max_score <= min_score:
+        if score_all_same:
             color_value = color_fn(min_score)
             legend_samples = [
                 {"value": float(min_score), "color": color_value}

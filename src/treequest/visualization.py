@@ -30,9 +30,6 @@ def visualize_tree_graphviz(
             from treequest import vis
             vis.render(state, output_basename="output", format="html")
 
-    This is the legacy API maintained for backward compatibility.
-    For new code, consider using treequest.vis module for more features.
-
     Args:
         tree: The Tree object to visualize
         save_path: Optional path to save the visualization (without extension)
