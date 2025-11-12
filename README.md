@@ -14,6 +14,7 @@ A flexible answer tree search library featuring **AB-MCTS**, useful for (but not
 ## Quick Start
 ```python
 import random
+from pathlib import Path
 
 import treequest as tq
 
@@ -44,7 +45,8 @@ best_state, best_node_score = tq.top_k(search_tree, algo, k=1)[0]
 print(f"Best state: {best_state}, Score: {best_node_score}")
 
 # 5. Visualize the search tree.
-tq.render(search_tree, "ab_mcts_a_search_tree", format="html")
+output_file_basename = Path("ab_mcts_a_search_tree")
+tq.render(search_tree, output_file_basename, format="html")  # Generates `ab_mcts_a_search_tree.html`
 ```
 
 Alternatively, you can use an ask–tell interface with batched AB-MCTS sampling steps:
@@ -225,6 +227,7 @@ for _ in range(30):
 
 ## Visualization
 TreeQuest provides visualization utilities to render the search tree. You can visualize the search tree using the `tq.render` function as shown in the Quick Start section.
+You need to install optional dependencies for visualization either by `uv add treequest[vis]` or `uv add treequest[all]`.
 
 ```python
 import base64
@@ -240,28 +243,30 @@ class State:
 def state_formatter_html(state: State) -> str:
     """Formats the state for HTML visualization."""
     buffer = BytesIO()
-    state.image.save(buffer, format="PNG")
+    state.image.save(buffer, format="WEBP")
     img_str = base64.b64encode(buffer.getvalue()).decode()
     # HTML representation is allowed (ensure safety when using untrusted content)
-    return f'<div><p>{state.text}</p><br/><img src="data:image/png;base64,{img_str}" width=100% /></div>'
+    return f'<p>{state.text}</p><br/><img src="data:image/webp;base64,{img_str}" width=100% />'
 
 algo = tq.ABMCTSA()
 search_tree = algo.init_tree()
-for _ in range(10):
+output_dir = Path("progress"); output_dir.mkdir(exist_ok=True)
+for step in range(1, 11):
     search_tree = algo.step(search_tree, generate_fns)
-
-tq.render(
-    search_tree,
-    output_basename="search_tree",
-    format="pdf",  # For "pdf", "svg", "png", "jpg" and "jpeg" formats, using graphviz
-    state_formatter=lambda state: state.text,  # For non-HTML formats, use text only
-)
+    # We can check the progress by rendering the tree at each step.
+    if step % 5 > 0: continue
+    tq.render(
+        search_tree,
+        output_basename=output_dir / f"search_tree_step{step}",
+        format="pdf",  # For "pdf", "svg", "png", "jpg" and "jpeg" formats, using graphviz
+        state_formatter=lambda state: state.text,  # For non-HTML formats, use text only
+    )  # Generates `progress/search_tree_step5.pdf`, `progress/search_tree_step10.pdf`
 tq.render(
     search_tree,
     output_basename="search_tree",
     format="html",  # For HTML format, use HTML with d3.js visualization
     state_formatter=state_formatter_html,  # Use HTML formatter
-)
+)  # Generates `search_tree.html`
 ```
 
 > IMPORTANT: When using HTML format, ensure that the HTML file is securely handled, especially if the state formatter includes raw HTML content. Avoid opening untrusted HTML files in your browser.
