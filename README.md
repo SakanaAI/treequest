@@ -296,4 +296,4 @@ TreeQuest bundles a few assets whose original authors retain copyright:
 - **D3.js v7** by Mike Bostock and contributors, distributed under the ISC License. The full license text is included in `src/treequest/vis/assets/d3.LICENSE.txt` alongside the `d3.v7.min.js` binary.
 - **Colormap samples** extracted from matplotlib and seaborn. The data and license references are embedded in `src/treequest/vis/assets/colormaps.json`.
 
-These notices must be preserved in any redistribution of TreeQuest or its compiled artifacts.
+These notices must be preserved in any redistribution of TreeQuest, including any compiled artifacts.
