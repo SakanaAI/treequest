@@ -21,8 +21,7 @@ def render_mermaid(
 
     Args:
         snapshot: Visualization snapshot to render
-        output_basename: Optional output file path without extension.
-                        If None, returns the Mermaid string.
+        output_basename: Output file path without extension.
         format: Output format ("mermaid" or "md" for markdown)
         theme: Mermaid theme ("default", "dark", "forest", etc.)
         max_nodes: Maximum number of nodes to include. If exceeded,

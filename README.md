@@ -93,16 +93,21 @@ We recommend `batch_size<=5` as a starting point.
 - Checkpointing and resuming searches.
 
 ## Installation
-### uv
 First, install [`uv`](https://github.com/astral-sh/uv?tab=readme-ov-file#installation). Then you can install TreeQuest with the following command:
 ```bash
-uv add "treequest[abmcts-m]"
+uv add "treequest"
 ```
 
-### pip
 Alternatively, you can use pip to install TreeQuest:
 ```bash
-pip install "treequest[abmcts-m]"
+pip install "treequest"
+```
+
+There are optional dependencies for ABMCTS-M and visualization features. You can install them with:
+```bash
+uv add "treequest[abmcts-m]"  # For ABMCTS-M
+uv add "treequest[vis]"  # For visualization features
+uv add "treequest[all]"  # For all optional features
 ```
 
 ## Usage
@@ -232,6 +237,7 @@ You need to install optional dependencies for visualization either by `uv add tr
 ```python
 import base64
 from io import BytesIO
+from pathlib import Path
 
 import treequest as tq
 from PIL import Image
@@ -247,6 +253,10 @@ def state_formatter_html(state: State) -> str:
     img_str = base64.b64encode(buffer.getvalue()).decode()
     # HTML representation is allowed (ensure safety when using untrusted content)
     return f'<p>{state.text}</p><br/><img src="data:image/webp;base64,{img_str}" width=100% />'
+
+generate_fns = {
+    "action_1": ...  # Define your node generation functions (actions) here
+}
 
 algo = tq.ABMCTSA()
 search_tree = algo.init_tree()
@@ -269,7 +279,7 @@ tq.render(
 )  # Generates `search_tree.html`
 ```
 
-> IMPORTANT: When using HTML format, ensure that the HTML file is securely handled, especially if the state formatter includes raw HTML content. Avoid opening untrusted HTML files in your browser.
+> **IMPORTANT:** When using HTML format, ensure that the HTML file is securely handled, especially if the state formatter includes raw HTML content. Avoid opening untrusted HTML files in your browser. For example, XSS (cross site scripting) attacks can occur if the state includes malicious HTML/JavaScript code.
 
 ## Requirements
 

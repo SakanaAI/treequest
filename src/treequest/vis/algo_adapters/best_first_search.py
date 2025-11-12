@@ -41,9 +41,7 @@ class BestFirstSearchAdapter:
             },
             "leaf_score": {
                 "display_name": "Leaf Score",
-                "display_value": f"{leaf_indices[node.expand_idx]['score']:.4f}"
-                if node.expand_idx in leaf_indices
-                else "N/A",
+                "display_value": f"{leaf_indices[node.expand_idx]['score']:.4f}",
             },
         }
 

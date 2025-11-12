@@ -56,9 +56,6 @@ def render_html(
             - str: Colormap name (e.g., 'viridis', 'coolwarm')
             - ColorMap instance: Custom colormap
             - Callable[[float], str]: Custom function mapping score to hex color
-            Note: This parameter prepares colormap data for JavaScript,
-                  but full dynamic colormap support in D3 visualization
-                  will be implemented in a future update.
         include_fields: Optional list of node fields to include
         include_algo_metrics: Whether to include algorithm metrics
         include_annotations: Whether to include annotations
@@ -73,6 +70,11 @@ def render_html(
         raise DependencyNotFoundError(
             "jinja2 is not installed. Install it with: pip install treequest[vis]"
         )
+
+    # Normalize format
+    format = format.lower()
+    if format not in ["html"]:
+        raise ValueError(f"Unsupported format: {format}. Use 'html'.")
 
     try:
         # Convert snapshot to JSON string (no pretty-printing for compact HTML)

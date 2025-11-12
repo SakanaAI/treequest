@@ -6,11 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from treequest.vis.errors import (
-    DependencyNotFoundError,
-    RenderError,
-    VisualizationError,
-)
+from treequest.vis.errors import DependencyNotFoundError, RenderError
 from treequest.vis.snapshot import VisualizationSnapshot
 
 
@@ -79,15 +75,13 @@ def dump_snapshot(
         indent: Indentation level for output
 
     Raises:
-        DependencyNotFoundError: If YAML support is requested but pyyaml is not installed
         RenderError: If serialization fails
         ValueError: If format is not supported
     """
     # Normalize format
     format = format.lower()
-
     if format not in ["json", "yaml"]:
-        raise VisualizationError(f"Unsupported format: {format}. Use 'json' or 'yaml'.")
+        raise ValueError(f"Unsupported format: {format}. Use 'json' or 'yaml'.")
 
     # Convert snapshot to dict
     try:
