@@ -32,7 +32,7 @@ def render(
     and renders it to the specified format.
 
     Args:
-        obj: Algorithm state (e.g., MCTSState, BFSState) or a VisualizationSnapshot.
+        algo_state_or_snapshot: Algorithm state (e.g., MCTSState, BFSState) or a VisualizationSnapshot.
              Provide either of these.
         output_basename: Output file path without extension. If an existing directory is provided,
                          a timestamped filename (treequest_YYYYMMDD_HHMMSS) will be generated inside it.
