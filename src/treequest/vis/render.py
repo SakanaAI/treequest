@@ -1,6 +1,6 @@
 """High-level API for tree visualization."""
 
-import datetime
+import datetime as dt
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
@@ -17,7 +17,7 @@ AlgoStateT = TypeVar("AlgoStateT")
 
 
 def render(
-    obj: Union[AlgoStateT, VisualizationSnapshot[StateT]],
+    algo_state_or_snapshot: Union[AlgoStateT, VisualizationSnapshot[StateT]],
     output_basename: str | Path,
     *,
     format: str,
@@ -65,20 +65,20 @@ def render(
         >>> tq.render(state, "logs", format="md")
     """
     # Validate and resolve input object → snapshot
-    if isinstance(obj, VisualizationSnapshot):
-        snapshot = obj
+    if isinstance(algo_state_or_snapshot, VisualizationSnapshot):
+        snapshot = algo_state_or_snapshot
     else:
         snapshot = build_snapshot(
-            obj, state_formatter=state_formatter, annotations=annotations
+            algo_state_or_snapshot,
+            state_formatter=state_formatter,
+            annotations=annotations,
         )
 
-    output_path = Path(output_basename)
+    output_path = Path(output_basename).resolve()
     if output_path.is_dir():  # Generate filename with timestamp
-        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y%m%d_%H%M%S"
-        )
-        output_path = output_path / f"treequest_{timestamp}"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d_%H%M%S")
+        output_basename = str(output_path / f"treequest_{timestamp}")
+    else:
         output_basename = str(output_path)
 
     # Route to appropriate renderer
