@@ -88,7 +88,7 @@ def render(
         warnings.warn(
             (
                 f"Output path is a directory. Generated filename: {output_basename}\n"
-                "This may lead overwriting files if called multiple times within the same second."
+                "This may lead to overwriting files if called multiple times within the same second."
             ),
             UserWarning,
         )
