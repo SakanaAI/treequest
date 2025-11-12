@@ -346,10 +346,10 @@
 
     <script>
         // Embedded snapshot data
-        const snapshotData = {{ snapshot_json | safe }};
-        const nodeColors = {{ node_colors | safe }};
-        const colorLegendSamples = {{ color_legend_samples | safe }};
-        const colormapStats = {{ colormap_stats | safe }};
+        const snapshotData = {{ snapshot_dict | tojson }};
+        const nodeColors = {{ node_colors | tojson }};
+        const colorLegendSamples = {{ color_legend_samples | tojson }};
+        const colormapStats = {{ colormap_stats | tojson }};
         const DEFAULT_NODE_COLOR = '#888888';
 
         const baseNodesById = new Map();

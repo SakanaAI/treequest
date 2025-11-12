@@ -94,7 +94,7 @@ def render(
             render_html(snapshot, output_basename, format=format, **renderer_kwargs)
         except ImportError:
             raise VisualizationError(
-                "HTML rendering requires jinja2. Install it with: pip install treequest[vis-interactive]"
+                "HTML rendering requires jinja2. Install it with: pip install treequest[vis]"
             )
     else:
         raise VisualizationError(

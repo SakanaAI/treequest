@@ -46,8 +46,7 @@ def render_graphviz(
         import graphviz  # type: ignore
     except ImportError:
         raise DependencyNotFoundError(
-            "graphviz Python package is not installed. "
-            "Install it with: pip install treequest[vis-basic]"
+            "graphviz Python package is not installed. Install it with: pip install treequest[vis]"
         )
 
     # Normalize format

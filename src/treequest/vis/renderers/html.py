@@ -1,12 +1,11 @@
 """D3.js-based interactive HTML renderer for tree visualization."""
 
-import json
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 from treequest.vis.errors import DependencyNotFoundError, RenderError
-from treequest.vis.renderers.json_yaml import snapshot_to_json_string
 from treequest.vis.snapshot import VisualizationSnapshot
+from treequest.vis.renderers.json_yaml import snapshot_to_dict
 from treequest.vis.renderers.color_utils import (
     ROOT_COLOR,
     ColorMap,
@@ -18,10 +17,8 @@ from treequest.vis.renderers.color_utils import (
 def _get_d3_js() -> str:
     """Load d3.js from bundled assets."""
     d3_path = Path(__file__).parents[1] / "assets" / "d3.v7.min.js"
-
     if not d3_path.exists():
         raise RenderError(f"d3.js not found at {d3_path}")
-
     with open(d3_path, "r") as f:
         return f.read()
 
@@ -29,10 +26,8 @@ def _get_d3_js() -> str:
 def _get_template() -> str:
     """Load HTML template from assets directory."""
     template_path = Path(__file__).parents[1] / "assets" / "d3_tree.html.jinja2"
-
     if not template_path.exists():
         raise RenderError(f"HTML template not found at {template_path}")
-
     with open(template_path, "r") as f:
         return f.read()
 
@@ -43,8 +38,10 @@ def render_html(
     *,
     format: str = "html",
     theme: str = "light",
-    embed_snapshot: bool = True,
     color_map: Optional[Union[str, ColorMap, Callable[[float], str]]] = None,
+    include_fields: Optional[List[str]] = None,
+    include_algo_metrics: bool = True,
+    include_annotations: bool = True,
 ) -> None:
     """
     Render a visualization snapshot as an interactive HTML page using D3.js.
@@ -54,7 +51,6 @@ def render_html(
         output_basename: Output file path without extension
         format: Output format (should be "html")
         theme: Theme for the visualization ("light" or "dark")
-        embed_snapshot: Whether to embed the snapshot data in the HTML
         color_map: Color mapping for nodes. Can be:
             - None: Use default colormap
             - str: Colormap name (e.g., 'viridis', 'coolwarm')
@@ -63,6 +59,9 @@ def render_html(
             Note: This parameter prepares colormap data for JavaScript,
                   but full dynamic colormap support in D3 visualization
                   will be implemented in a future update.
+        include_fields: Optional list of node fields to include
+        include_algo_metrics: Whether to include algorithm metrics
+        include_annotations: Whether to include annotations
 
     Raises:
         DependencyNotFoundError: If jinja2 is not installed
@@ -72,39 +71,40 @@ def render_html(
         from jinja2 import Template
     except ImportError:
         raise DependencyNotFoundError(
-            "jinja2 is not installed. Install it with: pip install treequest[vis-interactive]"
-        )
-
-    if not embed_snapshot:
-        raise NotImplementedError(
-            "External JSON loading is not yet implemented. Use embed_snapshot=True."
+            "jinja2 is not installed. Install it with: pip install treequest[vis]"
         )
 
     try:
-        # Load d3.js
-        d3_js = _get_d3_js()
-
-        # Load template
-        template_str = _get_template()
-
         # Convert snapshot to JSON string (no pretty-printing for compact HTML)
-        snapshot_json = snapshot_to_json_string(snapshot, indent=0)
+        snapshot_dict = snapshot_to_dict(
+            snapshot,
+            include_fields=include_fields,
+            include_algo_metrics=include_algo_metrics,
+            include_annotations=include_annotations,
+        )
+    except Exception as e:
+        raise RenderError(f"Failed to convert snapshot to dictionary: {e}")
 
-        # Calculate score range for colormap
-        scores = [node.score for node in snapshot.nodes if node.score >= 0]
-        min_score = min(scores) if scores else 0.0
-        max_score = max(scores) if scores else 1.0
-        score_all_same = False
-        if min_score > max_score:
-            raise RuntimeError("Inconsistent score range: min_score > max_score")
-        elif min_score == max_score:  # Expand range to avoid division by zero
-            score_all_same = True
-            max_score = max_score + 0.5
-            min_score = min_score - 0.5
+    # Load d3.js and Jinja2 template
+    d3_js = _get_d3_js()
+    template_str = _get_template()
 
-        # Resolve color_map to a callable (for potential future use)
-        color_fn = resolve_colormap(color_map, min_score, max_score)
+    # Calculate score range for colormap
+    scores = [node.score for node in snapshot.nodes if node.score >= 0]
+    min_score = min(scores) if scores else 0.0
+    max_score = max(scores) if scores else 1.0
+    score_all_same = False
+    if min_score > max_score:
+        raise RuntimeError("Inconsistent score range: min_score > max_score")
+    elif min_score == max_score:  # Expand range to avoid division by zero
+        score_all_same = True
+        max_score = max_score + 0.5
+        min_score = min_score - 0.5
 
+    # Resolve color_map to a callable
+    color_fn = resolve_colormap(color_map, min_score, max_score)
+
+    try:
         # Pre-compute node colors for client-side rendering
         node_colors: Dict[int, str] = {}
         for node in snapshot.nodes:
@@ -113,8 +113,6 @@ def render_html(
             else:
                 base_color = color_fn(node.score)
             node_colors[node.id] = apply_status_color(node.status, base_color)
-
-        node_colors_json = json.dumps(node_colors)
 
         sample_count = 100
         legend_samples: List[Dict[str, Union[float, str]]] = []
@@ -131,21 +129,16 @@ def render_html(
                 value = min_score + (max_score - min_score) * position
                 legend_samples.append({"value": float(value), "color": color_fn(value)})
 
-        legend_samples_json = json.dumps(legend_samples)
-        colormap_stats_json = json.dumps(
-            {"minScore": float(min_score), "maxScore": float(max_score)}
-        )
-
         # Render template
         template = Template(template_str, autoescape=True)
         html_content = template.render(
-            snapshot_json=snapshot_json,
+            snapshot_dict=snapshot_dict,
             metadata=snapshot.metadata,
             theme=theme,
             d3_js=d3_js,
-            node_colors=node_colors_json,
-            color_legend_samples=legend_samples_json,
-            colormap_stats=colormap_stats_json,
+            node_colors=node_colors,
+            color_legend_samples=legend_samples,
+            colormap_stats={"minScore": float(min_score), "maxScore": float(max_score)},
         )
 
         # Write to file

@@ -3,7 +3,7 @@ import random
 import time
 from typing import Optional, Tuple
 
-from tqdm import tqdm  # type: ignore[import-untyped]
+from tqdm import tqdm
 
 from treequest import ABMCTSM
 from treequest.visualization import visualize_tree_graphviz

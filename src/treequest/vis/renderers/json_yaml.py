@@ -4,6 +4,8 @@ import dataclasses
 import json
 from typing import Any, Dict, List, Optional
 
+import yaml
+
 from treequest.vis.errors import (
     DependencyNotFoundError,
     RenderError,
@@ -12,22 +14,45 @@ from treequest.vis.errors import (
 from treequest.vis.snapshot import VisualizationSnapshot
 
 
-def _snapshot_to_dict(snapshot: VisualizationSnapshot) -> Dict[str, Any]:
+def snapshot_to_dict(
+    snapshot: VisualizationSnapshot,
+    include_fields: Optional[List[str]] = None,
+    include_algo_metrics: bool = True,
+    include_annotations: bool = True,
+) -> Dict[str, Any]:
     """
     Convert a snapshot to a dictionary for serialization.
 
     Args:
         snapshot: Visualization snapshot
+        include_fields: Optional list of node fields to include
+        include_algo_metrics: Whether to include algorithm metrics
+        include_annotations: Whether to include annotations
 
     Returns:
         Dictionary representation
     """
-    return {
-        "nodes": [dataclasses.asdict(node) for node in snapshot.nodes],
-        "edges": [dataclasses.asdict(edge) for edge in snapshot.edges],
-        "trials": [dataclasses.asdict(trial) for trial in snapshot.trials],
-        "metadata": snapshot.metadata,
-    }
+    try:
+        # Filter node fields if requested
+        filtered_nodes = []
+        for node in snapshot.nodes:
+            node_dict = dataclasses.asdict(node)
+            if include_fields is not None:
+                node_dict = {k: v for k, v in node_dict.items() if k in include_fields}
+            if not include_algo_metrics:
+                node_dict.pop("algo_metrics", None)
+            if not include_annotations:
+                node_dict.pop("annotations", None)
+            filtered_nodes.append(node_dict)
+
+        return {
+            "nodes": filtered_nodes,
+            "edges": [dataclasses.asdict(edge) for edge in snapshot.edges],
+            "trials": [dataclasses.asdict(trial) for trial in snapshot.trials],
+            "metadata": snapshot.metadata,
+        }
+    except Exception as e:
+        raise RenderError(f"Failed to convert snapshot to JSON string: {e}")
 
 
 def dump_snapshot(
@@ -66,24 +91,12 @@ def dump_snapshot(
 
     # Convert snapshot to dict
     try:
-        snapshot_dict = _snapshot_to_dict(snapshot)
-
-        # Filter node fields if requested
-        if include_fields is not None:
-            filtered_nodes = []
-            for node in snapshot_dict["nodes"]:
-                filtered_node = {k: v for k, v in node.items() if k in include_fields}
-                filtered_nodes.append(filtered_node)
-            snapshot_dict["nodes"] = filtered_nodes
-        else:
-            # Apply include flags
-            if not include_algo_metrics:
-                for node in snapshot_dict["nodes"]:
-                    node.pop("algo_metrics", None)
-            if not include_annotations:
-                for node in snapshot_dict["nodes"]:
-                    node.pop("annotations", None)
-
+        snapshot_dict = snapshot_to_dict(
+            snapshot,
+            include_fields=include_fields,
+            include_algo_metrics=include_algo_metrics,
+            include_annotations=include_annotations,
+        )
     except Exception as e:
         raise RenderError(f"Failed to convert snapshot to dictionary: {e}")
 
@@ -94,62 +107,9 @@ def dump_snapshot(
             with open(output_path, "w") as f:
                 json.dump(snapshot_dict, f, indent=indent)
         elif format == "yaml":
-            try:
-                import yaml  # type: ignore
-            except ImportError:
-                raise DependencyNotFoundError(
-                    "pyyaml is not installed. Install it with: pip install treequest[vis-basic]"
-                )
             with open(output_path, "w") as f:
                 yaml.dump(snapshot_dict, f, indent=indent, sort_keys=False)
     except DependencyNotFoundError:
         raise
     except Exception as e:
         raise RenderError(f"Failed to write {format.upper()} file: {e}")
-
-
-def snapshot_to_json_string(
-    snapshot: VisualizationSnapshot,
-    include_fields: Optional[List[str]] = None,
-    include_algo_metrics: bool = True,
-    include_annotations: bool = True,
-    indent: int = 2,
-) -> str:
-    """
-    Convert a snapshot to a JSON string.
-
-    Args:
-        snapshot: Visualization snapshot
-        include_fields: Optional list of node fields to include
-        include_algo_metrics: Whether to include algorithm metrics
-        include_annotations: Whether to include annotations
-        indent: Indentation level
-
-    Returns:
-        JSON string
-
-    Raises:
-        RenderError: If serialization fails
-    """
-    try:
-        snapshot_dict = _snapshot_to_dict(snapshot)
-
-        # Filter node fields if requested
-        if include_fields is not None:
-            filtered_nodes = []
-            for node in snapshot_dict["nodes"]:
-                filtered_node = {k: v for k, v in node.items() if k in include_fields}
-                filtered_nodes.append(filtered_node)
-            snapshot_dict["nodes"] = filtered_nodes
-        else:
-            # Apply include flags
-            if not include_algo_metrics:
-                for node in snapshot_dict["nodes"]:
-                    node.pop("algo_metrics", None)
-            if not include_annotations:
-                for node in snapshot_dict["nodes"]:
-                    node.pop("annotations", None)
-
-        return json.dumps(snapshot_dict, indent=indent)
-    except Exception as e:
-        raise RenderError(f"Failed to convert snapshot to JSON string: {e}")
