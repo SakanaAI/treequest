@@ -221,7 +221,7 @@ for _ in range(30):
     search_tree = ab_mcts_m.step(search_tree, generate_fns)
 ```
 
-**NOTE**: To run AB-MCTS-M, you need to install extra dependencies with the `treequest[abmcts-m]` option.
+**NOTE**: To run AB-MCTS-M, you need to install extra dependencies with the `treequest[abmcts-m]` or `treequest[all]` option.
 
 ## Visualization
 TreeQuest provides visualization utilities to render the search tree. You can visualize the search tree using the `tq.render` function as shown in the Quick Start section.
