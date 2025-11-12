@@ -18,7 +18,7 @@ AlgoStateT = TypeVar("AlgoStateT")
 
 def render(
     obj: Union[AlgoStateT, VisualizationSnapshot[StateT]],
-    output_basename: str,
+    output_basename: str | Path,
     *,
     format: str,
     state_formatter: Optional[Callable[[StateT], str]] = None,
