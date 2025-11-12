@@ -159,8 +159,13 @@ def get_colormap(
 
     Example:
         >>> cmap = get_colormap('coolwarm', 0.0, 100.0)
-        >>> color = cmap.get_color_hex(50.0)
+        >>> cmap.get_color_hex(25.0)
+        '#8db0fe'
         >>> cmap_r = get_colormap('coolwarm', 0.0, 100.0, reverse=True)
+        >>> cmap_r.get_color_hex(25.0)
+        '#f4987a'
+        >>> cmap_r.get_color_hex(75.0)
+        '#8db0fe'
     """
     data = _load_colormap_data()
 
@@ -214,7 +219,7 @@ def resolve_colormap(
         >>> # Using a colormap name
         >>> color_fn = resolve_colormap('coolwarm', 0.0, 1.0)
         >>> color_fn(0.5)
-        '#f7f7f7'
+        '#dddcdc'
 
         >>> # Using a ColorMap instance
         >>> cmap = get_colormap('viridis', 0.0, 100.0)
@@ -228,29 +233,20 @@ def resolve_colormap(
         >>> color_fn(0.7)
         '#ff0000'
     """
-    if color_map_input is None:
-        # Use default colormap
-        cmap = get_colormap(default_colormap, min_value, max_value)
-        return cmap.get_color_hex
+    if color_map_input is None:  # Use default colormap
+        color_map_input = default_colormap
 
-    elif isinstance(color_map_input, str):
-        # Colormap name
+    if isinstance(color_map_input, str):  # Colormap name
         cmap = get_colormap(color_map_input, min_value, max_value)
         return cmap.get_color_hex
-
-    elif isinstance(color_map_input, ColorMap):
-        # ColorMap instance
+    elif isinstance(color_map_input, ColorMap):  # ColorMap instance
         return color_map_input.get_color_hex
-
-    elif callable(color_map_input):
-        # Already a callable
+    elif callable(color_map_input):  # Already a callable
         return color_map_input
-
-    else:
-        raise TypeError(
-            f"color_map must be None, str, ColorMap, or Callable[[float], str], "
-            f"got {type(color_map_input).__name__}"
-        )
+    raise TypeError(
+        f"color_map must be None, str, ColorMap, or Callable[[float], str], "
+        f"got {type(color_map_input).__name__}"
+    )
 
 
 ROOT_COLOR = "#AAAAAA"  # light gray

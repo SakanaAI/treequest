@@ -1,6 +1,7 @@
 """High-level API for tree visualization."""
 
 import datetime as dt
+import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
@@ -30,6 +31,12 @@ def render(
 
     This function accepts either an algorithm state or a pre-built snapshot,
     and renders it to the specified format.
+
+    IMPORTANT: When using HTML format, ensure that the HTML file is securely handled,
+               especially if the state formatter includes raw HTML content.
+               Avoid opening untrusted HTML files in your browser.
+               For example, XSS (cross site scripting) attacks can occur
+               if the state includes malicious HTML/JavaScript code.
 
     Args:
         algo_state_or_snapshot: Algorithm state (e.g., MCTSState, BFSState) or a VisualizationSnapshot.
@@ -78,6 +85,13 @@ def render(
     if output_path.is_dir():  # Generate filename with timestamp
         timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d_%H%M%S")
         output_basename = str(output_path / f"treequest_{timestamp}")
+        warnings.warn(
+            (
+                f"Output path is a directory. Generated filename: {output_basename}\n"
+                "This may lead overwriting files if called multiple times within the same second."
+            ),
+            UserWarning,
+        )
     else:
         output_basename = str(output_path)
 
@@ -90,12 +104,7 @@ def render(
     elif format in ["mermaid", "md", "markdown"]:  # Mermaid diagram
         render_mermaid(snapshot, output_basename, format=format, **renderer_kwargs)
     elif format == "html":  # HTML renderer
-        try:
-            render_html(snapshot, output_basename, format=format, **renderer_kwargs)
-        except ImportError:
-            raise VisualizationError(
-                "HTML rendering requires jinja2. Install it with: pip install treequest[vis]"
-            )
+        render_html(snapshot, output_basename, format=format, **renderer_kwargs)
     else:
         raise VisualizationError(
             f"Unsupported format: {format}. "

@@ -46,6 +46,12 @@ def render_html(
     """
     Render a visualization snapshot as an interactive HTML page using D3.js.
 
+    IMPORTANT: When using HTML format, ensure that the HTML file is securely handled,
+               especially if the state formatter includes raw HTML content.
+               Avoid opening untrusted HTML files in your browser.
+               For example, XSS (cross site scripting) attacks can occur
+               if the state includes malicious HTML/JavaScript code.
+
     Args:
         snapshot: Visualization snapshot to render
         output_basename: Output file path without extension

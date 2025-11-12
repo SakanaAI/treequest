@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from treequest.vis.errors import DependencyNotFoundError, RenderError
+from treequest.vis.errors import RenderError
 from treequest.vis.snapshot import VisualizationSnapshot
 
 
@@ -26,7 +26,7 @@ def snapshot_to_dict(
         include_annotations: Whether to include annotations
 
     Returns:
-        Dictionary representation
+        Dictionary representation of the snapshot
     """
     try:
         # Filter node fields if requested
@@ -48,7 +48,7 @@ def snapshot_to_dict(
             "metadata": snapshot.metadata,
         }
     except Exception as e:
-        raise RenderError(f"Failed to convert snapshot to JSON string: {e}")
+        raise RenderError(f"Failed to convert snapshot to dictionary: {e}")
 
 
 def dump_snapshot(
@@ -103,7 +103,5 @@ def dump_snapshot(
         elif format == "yaml":
             with open(output_path, "w") as f:
                 yaml.dump(snapshot_dict, f, indent=indent, sort_keys=False)
-    except DependencyNotFoundError:
-        raise
     except Exception as e:
         raise RenderError(f"Failed to write {format.upper()} file: {e}")
