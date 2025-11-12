@@ -25,21 +25,15 @@ abmcts-m = [
     "packaging>=23",
 ]
 
-vis-basic = [
-    "Pillow>=10.0.0",
-    "graphviz>=0.20.3",
-    "pyyaml>=6.0",
-]
-
-vis-interactive = [
-    "jinja2>=3.1.0",
-]
-
-vis-all = [
+vis = [
     "Pillow>=10.0.0",
     "graphviz>=0.20.3",
     "jinja2>=3.1.0",
-    "pyyaml>=6.0",
+]
+
+all = [
+    "treequest[abmcts-m]",
+    "treequest[vis]",
 ]
 
 [build-system]
