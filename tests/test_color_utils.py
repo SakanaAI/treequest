@@ -103,6 +103,27 @@ class TestInterpolatedColorMap:
         with pytest.raises(ValueError, match="must be less than"):
             InterpolatedColorMap(colors, 1.0, 0.0)
 
+    def test_invalid_color_values_rgba_raise_error(self):
+        colors = [(255, 0, 0, 255), (0, 0, 255, 255)]
+        with pytest.raises(
+            ValueError, match="Each color in color_data must be a tuple"
+        ):
+            InterpolatedColorMap(colors, 0.0, 1.0)
+
+    def test_invalid_color_values_not_integers_raise_error(self):
+        colors = [(1.0, 0, 0), (0, 0, 1.0)]
+        with pytest.raises(
+            ValueError, match="Each color in color_data must be a tuple"
+        ):
+            InterpolatedColorMap(colors, 0.0, 1.0)
+
+    def test_invalid_color_values_out_of_range_raise_error(self):
+        colors = [(-1, 0, 0), (0, 0, 256)]
+        with pytest.raises(
+            ValueError, match="Each color in color_data must be a tuple"
+        ):
+            InterpolatedColorMap(colors, 0.0, 1.0)
+
 
 class TestColormapLoading:
     """Test colormap data loading and factory functions."""

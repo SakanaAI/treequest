@@ -96,9 +96,7 @@ def render_html(
     min_score = min(scores) if scores else 0.0
     max_score = max(scores) if scores else 1.0
     score_all_same = False
-    if min_score > max_score:
-        raise RuntimeError("Inconsistent score range: min_score > max_score")
-    elif min_score == max_score:  # Expand range to avoid division by zero
+    if min_score == max_score:  # Expand range to avoid division by zero
         score_all_same = True
         max_score = max_score + 0.5
         min_score = min_score - 0.5

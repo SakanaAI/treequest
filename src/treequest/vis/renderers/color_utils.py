@@ -66,6 +66,13 @@ class InterpolatedColorMap(ColorMap):
     ):
         if not color_data:
             raise ValueError("color_data must not be empty")
+        for color in color_data:
+            if len(color) != 3 or any(
+                not (0 <= c <= 255) or not isinstance(c, int) for c in color
+            ):
+                raise ValueError(
+                    "Each color in color_data must be a tuple of three integers (R, G, B) in range 0-255"
+                )
         if min_value >= max_value:
             raise ValueError("min_value must be less than max_value")
 
