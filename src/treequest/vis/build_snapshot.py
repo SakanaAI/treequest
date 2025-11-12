@@ -105,7 +105,9 @@ def build_snapshot(
         else:
             node_state = node.state
             if node_state is None:
-                raise InvalidStateError("Non-root node must have an associated state.")
+                raise InvalidStateError(
+                    f"Non-root node (ID: {node.expand_idx}) must have an associated state."
+                )
             try:
                 state_repr = state_formatter(node_state)
             except Exception:

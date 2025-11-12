@@ -31,7 +31,9 @@ class GrayscaleColorMap(ColorMap):
         self.min_value = min_value
         self.max_value = max_value
         if min_value >= max_value:
-            raise ValueError("min_value must be less than max_value")
+            raise ValueError(
+                f"min_value ({min_value}) must be less than max_value ({max_value})"
+            )
 
     def get_color_tuple(self, value: float) -> Tuple[int, int, int]:
         """Map a value to a grayscale color."""
