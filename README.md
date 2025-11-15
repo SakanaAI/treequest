@@ -95,19 +95,25 @@ We recommend `batch_size<=5` as a starting point.
 ## Installation
 First, install [`uv`](https://github.com/astral-sh/uv?tab=readme-ov-file#installation). Then you can install TreeQuest with the following command:
 ```bash
-uv add "treequest"
+uv add "treequest[all]"
 ```
 
 Alternatively, you can use pip to install TreeQuest:
 ```bash
-pip install "treequest"
+pip install "treequest[all]"
 ```
 
 There are optional dependencies for ABMCTS-M and visualization features. You can install them with:
 ```bash
-uv add "treequest[abmcts-m]"  # For ABMCTS-M
-uv add "treequest[vis]"  # For visualization features
-uv add "treequest[all]"  # For all optional features
+# with all dependencies
+uv add "treequest[all]"
+
+# without dependencies
+uv add treequest
+
+# with individual dependencies
+uv add "treequest[abmcts-m]"
+uv add "treequest[vis]"
 ```
 
 ## Usage
@@ -260,23 +266,20 @@ generate_fns = {
 
 algo = tq.ABMCTSA()
 search_tree = algo.init_tree()
-output_dir = Path("progress"); output_dir.mkdir(exist_ok=True)
-for step in range(1, 11):
+output_dir = Path("search_tree"); output_dir.mkdir(exist_ok=True)
+for i in range(10):
     search_tree = algo.step(search_tree, generate_fns)
-    # We can check the progress by rendering the tree at each step.
-    if step % 5 > 0: continue
-    tq.render(
-        search_tree,
-        output_basename=output_dir / f"search_tree_step{step}",
-        format="pdf",  # For "pdf", "svg", "png", "jpg" and "jpeg" formats, using graphviz
-        state_formatter=lambda state: state.text,  # For non-HTML formats, use text only
-    )  # Generates `progress/search_tree_step5.pdf`, `progress/search_tree_step10.pdf`
-tq.render(
-    search_tree,
-    output_basename="search_tree",
-    format="html",  # For HTML format, use HTML with d3.js visualization
-    state_formatter=state_formatter_html,  # Use HTML formatter
-)  # Generates `search_tree.html`
+    # Rendering "latest.html" for checking search progress on the fly
+    if i % 2 == 0 or i == 9:
+        tq.render(
+            search_tree,
+            output_basename=output_dir / "latest",
+            format="html",
+            state_formatter=state_formatter_html, # Use html custom formetter
+        )
+
+tq.render(search_tree, output_basename=output_dir / "final", format="pdf")
+tq.render(search_tree, output_basename=output_dir / "final", format="html", state_formatter=state_formatter_html)
 ```
 
 > **IMPORTANT:** When using HTML format, ensure that the HTML file is securely handled, especially if the state formatter includes raw HTML content. Avoid opening untrusted HTML files in your browser. For example, XSS (cross site scripting) attacks can occur if the state includes malicious HTML/JavaScript code.
