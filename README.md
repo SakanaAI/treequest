@@ -241,6 +241,7 @@ TreeQuest provides visualization utilities to render the search tree. You can vi
 You need to install optional dependencies for visualization either by `uv add treequest[vis]` or `uv add treequest[all]`.
 
 ```python
+import html
 import base64
 from io import BytesIO
 from pathlib import Path
@@ -258,6 +259,7 @@ def state_formatter_html(state: State) -> str:
     state.image.save(buffer, format="WEBP")
     img_str = base64.b64encode(buffer.getvalue()).decode()
     # HTML representation is allowed (ensure safety when using untrusted content)
+    # In case state.text cannot be trusted, we recommend e.g., html.escape(state.text) to avoid html injection.
     return f'<p>{state.text}</p><br/><img src="data:image/webp;base64,{img_str}" width=100% />'
 
 generate_fns = {
