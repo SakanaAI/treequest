@@ -1,5 +1,7 @@
 """Functions for building visualization snapshots from algorithm states."""
 
+import dataclasses
+import json
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 from treequest.algos.tree import Tree
@@ -15,6 +17,52 @@ from treequest.vis.snapshot import (
 
 StateT = TypeVar("StateT")
 AlgoStateT = TypeVar("AlgoStateT")
+
+try:  # Optional dependency – used only if available
+    from pydantic import BaseModel as PydanticBaseModel
+except Exception:  # pragma: no cover - pydantic is optional
+    PydanticBaseModel = None
+
+
+def _default_state_formatter(state: Any) -> str:
+    """Default formatter for node states.
+
+    - If the state is a pydantic BaseModel, prefer JSON.
+    - If the state is a dataclass instance, serialize via asdict() to JSON.
+    - Fallback to repr()/str() otherwise.
+    """
+    # Pydantic BaseModel → JSON
+    if PydanticBaseModel is not None and isinstance(state, PydanticBaseModel):
+        try:
+            if hasattr(state, "model_dump_json"):
+                # Pydantic v2 preferred API
+                return state.model_dump_json()
+            if hasattr(state, "model_dump"):
+                # Pydantic v2 Python object → JSON string
+                return json.dumps(state.model_dump(), default=str)
+            if hasattr(state, "json"):
+                # Pydantic v1 API
+                return state.json()
+        except Exception:
+            # Fall through to generic formatting
+            pass
+
+    # Dataclass instance → JSON
+    if dataclasses.is_dataclass(state):
+        try:
+            return json.dumps(dataclasses.asdict(state), default=str)
+        except Exception:
+            # Fall through to generic formatting
+            pass
+
+    # Generic fallback
+    try:
+        return repr(state)
+    except Exception:
+        try:
+            return str(state)
+        except Exception:
+            return "<unrepresentable state>"
 
 
 def build_snapshot(
@@ -60,7 +108,7 @@ def build_snapshot(
 
     # Default state formatter
     if state_formatter is None:
-        state_formatter = repr
+        state_formatter = _default_state_formatter
 
     # Build node snapshots
     nodes = tree.get_nodes()

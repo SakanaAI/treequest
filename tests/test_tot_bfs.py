@@ -1,9 +1,16 @@
 import random
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from treequest.algos.tree_of_thought_bfs import TreeOfThoughtsBFSAlgo
-from treequest.visualization import visualize_tree_graphviz
+from treequest.vis import render
+
+
+@dataclass
+class State:
+    depth: int
+    score: float
 
 
 def test_tree_of_thoughts_bfs():
@@ -12,14 +19,13 @@ def test_tree_of_thoughts_bfs():
     random.seed(42)
 
     # Define a deterministic generate function that increases score with depth
-    def generate_fn(state: Optional[str]) -> Tuple[str, float]:
+    def generate_fn(state: Optional[State]) -> Tuple[State, float]:
         if state is None:  # Root node
             depth = 0
         else:
             # Extract depth and base score from previous state
             try:
-                parts = state.split("depth=")[1].split(",")
-                depth = int(parts[0])
+                depth = state.depth
             except (IndexError, ValueError):
                 depth = 0
 
@@ -32,7 +38,7 @@ def test_tree_of_thoughts_bfs():
 
         new_score = min(max(new_score, 0.0), 1.0)
 
-        return f"State(depth={new_depth}, score={new_score:.2f})", new_score
+        return State(depth=new_depth, score=new_score), new_score
 
     # Create the algorithm with small limits for testing
     breadth_limit = 2  # select 2 best nodes at each depth
@@ -81,9 +87,8 @@ def test_tree_of_thoughts_bfs():
                 )
 
     # Visualize the tree
-    visualize_tree_graphviz(
-        state.tree,
-        save_path="tests/tot_bfs_test",
-        title="Tree of Thoughts BFS",
+    render(
+        state,
+        output_basename="tests/tot_bfs_test",
         format="png",
     )
