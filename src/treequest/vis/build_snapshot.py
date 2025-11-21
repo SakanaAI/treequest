@@ -48,7 +48,7 @@ def _default_state_formatter(state: Any) -> str:
             pass
 
     # Dataclass instance → JSON
-    if dataclasses.is_dataclass(state):
+    if dataclasses.is_dataclass(state) and not isinstance(state, type):
         try:
             return json.dumps(dataclasses.asdict(state), default=str)
         except Exception:
