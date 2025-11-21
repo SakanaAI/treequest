@@ -19,7 +19,7 @@ StateT = TypeVar("StateT")
 AlgoStateT = TypeVar("AlgoStateT")
 
 try:  # Optional dependency – used only if available
-    from pydantic import BaseModel as PydanticBaseModel
+    from pydantic import BaseModel as PydanticBaseModel  # type: ignore
 except Exception:  # pragma: no cover - pydantic is optional
     PydanticBaseModel = None
 
