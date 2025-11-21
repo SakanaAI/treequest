@@ -18,7 +18,7 @@ AlgoStateT = TypeVar("AlgoStateT")
 
 
 def build_snapshot(
-    state: AlgoStateT,
+    search_tree: AlgoStateT,
     state_formatter: Optional[Callable[[StateT], str]] = None,
     annotations: Optional[Dict[str, Any]] = None,
 ) -> VisualizationSnapshot:
@@ -26,7 +26,7 @@ def build_snapshot(
     Build a visualization snapshot from an algorithm state.
 
     Args:
-        state: Algorithm state (e.g., MCTSState, BFSState, etc.)
+        search_tree: Search tree state (return value of algo.init_tree, algo.step, algo.ask, or algo.tell).
         state_formatter: Optional function to format node states. Defaults to repr().
         annotations: Optional global annotations to add to metadata.
 
@@ -37,26 +37,26 @@ def build_snapshot(
         InvalidStateError: If the state is invalid or missing required attributes
     """
     # Validate state has required attributes
-    if not hasattr(state, "tree"):
+    if not hasattr(search_tree, "tree"):
         raise InvalidStateError(
-            f"State must have a 'tree' attribute, got {type(state)}"
+            f"State must have a 'tree' attribute, got {type(search_tree)}"
         )
 
-    tree: Tree = state.tree
+    tree: Tree = search_tree.tree
 
     # Get trial store if available
     trial_store: Optional[Union[TrialStore, TrialStoreWithNodeQueue]] = None
     finished_trials: Optional[Dict[str, Trial]] = None
     running_trials: Optional[Dict[str, Trial]] = None
 
-    if hasattr(state, "trial_store"):
-        trial_store = state.trial_store
+    if hasattr(search_tree, "trial_store"):
+        trial_store = search_tree.trial_store
         finished_trials = getattr(trial_store, "finished_trials", {}) or {}
         running_trials = getattr(trial_store, "running_trials", {}) or {}
 
     # Get adapter for this algorithm
-    adapter = get_adapter(state)
-    algorithm_name = adapter.get_algorithm_name(state) if adapter else "Unknown"
+    adapter = get_adapter(search_tree)
+    algorithm_name = adapter.get_algorithm_name(search_tree) if adapter else "Unknown"
 
     # Default state formatter
     if state_formatter is None:
@@ -117,7 +117,7 @@ def build_snapshot(
         algo_metrics: Dict[str, Any] = {}
         if adapter:
             try:
-                algo_metrics = adapter.extract_node_metrics(state, node)
+                algo_metrics = adapter.extract_node_metrics(search_tree, node)
             except Exception:
                 # Ignore errors in metric extraction
                 pass

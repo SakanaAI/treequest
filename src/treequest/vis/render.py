@@ -18,7 +18,7 @@ AlgoStateT = TypeVar("AlgoStateT")
 
 
 def render(
-    algo_state_or_snapshot: Union[AlgoStateT, VisualizationSnapshot[StateT]],
+    search_tree: Union[AlgoStateT, VisualizationSnapshot[StateT]],
     output_basename: Union[str, Path],
     *,
     format: str,
@@ -29,8 +29,8 @@ def render(
     """
     High-level API to render a tree visualization.
 
-    This function accepts either an algorithm state or a pre-built snapshot,
-    and renders it to the specified format.
+    This function accepts either a search tree state (the object returned from algo.init_tree/step/ask/tell)
+    or a pre-built VisualizationSnapshot, and renders it to the specified format.
 
     IMPORTANT: When using HTML format, ensure that the HTML file is securely handled,
                especially if the state formatter includes raw HTML content.
@@ -39,8 +39,8 @@ def render(
                if the state includes malicious HTML/JavaScript code.
 
     Args:
-        algo_state_or_snapshot: Algorithm state (e.g., MCTSState, BFSState) or a VisualizationSnapshot.
-             Provide either of these.
+        search_tree: Search tree state (return value of algo.init_tree, algo.step, algo.ask, or algo.tell),
+            or a VisualizationSnapshot created by treequest.vis.build_snapshot.
         output_basename: Output file path without extension. If an existing directory is provided,
                          a timestamped filename (treequest_YYYYMMDD_HHMMSS) will be generated inside it.
         format: Output format. Supported values:
@@ -72,11 +72,11 @@ def render(
         >>> tq.render(state, "logs", format="md")
     """
     # Validate and resolve input object → snapshot
-    if isinstance(algo_state_or_snapshot, VisualizationSnapshot):
-        snapshot = algo_state_or_snapshot
+    if isinstance(search_tree, VisualizationSnapshot):
+        snapshot = search_tree
     else:
         snapshot = build_snapshot(
-            algo_state_or_snapshot,
+            search_tree,
             state_formatter=state_formatter,
             annotations=annotations,
         )
