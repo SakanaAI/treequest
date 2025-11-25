@@ -32,9 +32,10 @@ def _default_state_formatter(state: Any) -> str:
     - Fallback to repr()/str() otherwise.
 
     """
-    # Pydantic BaseModel → JSON
     # NOTE: We use separators=(",", ":") workaround to get the consistent json string representation.
     # See https://github.com/pydantic/pydantic/issues/6606
+
+    # Pydantic BaseModel → JSON
     if PydanticBaseModel is not None and isinstance(state, PydanticBaseModel):
         try:
             if hasattr(state, "model_dump_json"):
