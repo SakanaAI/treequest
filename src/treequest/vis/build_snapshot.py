@@ -30,8 +30,11 @@ def _default_state_formatter(state: Any) -> str:
     - If the state is a pydantic BaseModel, prefer JSON.
     - If the state is a dataclass instance, serialize via asdict() to JSON.
     - Fallback to repr()/str() otherwise.
+
     """
     # Pydantic BaseModel → JSON
+    # NOTE: We use separators=(",", ":") workaround to get the consistent json string representation.
+    # See https://github.com/pydantic/pydantic/issues/6606
     if PydanticBaseModel is not None and isinstance(state, PydanticBaseModel):
         try:
             if hasattr(state, "model_dump_json"):
@@ -39,10 +42,12 @@ def _default_state_formatter(state: Any) -> str:
                 return state.model_dump_json()
             if hasattr(state, "model_dump"):
                 # Pydantic v2 Python object → JSON string
-                return json.dumps(state.model_dump(), default=str)
+                return json.dumps(
+                    state.model_dump(), default=str, separators=(",", ":")
+                )
             if hasattr(state, "json"):
                 # Pydantic v1 API
-                return state.json()
+                return state.json(separators=(",", ":"))
         except Exception:
             # Fall through to generic formatting
             pass
@@ -50,7 +55,9 @@ def _default_state_formatter(state: Any) -> str:
     # Dataclass instance → JSON
     if dataclasses.is_dataclass(state) and not isinstance(state, type):
         try:
-            return json.dumps(dataclasses.asdict(state), default=str)
+            return json.dumps(
+                dataclasses.asdict(state), default=str, separators=(",", ":")
+            )
         except Exception:
             # Fall through to generic formatting
             pass
