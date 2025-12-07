@@ -1,7 +1,7 @@
 def initialize_numpyro(num_cpu_devices: int = 4):  # For 4 parallel chains
     import os
 
-    import numpyro  # type: ignore[import-not-found]
+    import numpyro  # type: ignore[import-untyped]
 
     # To avoid file lock error: https://github.com/pymc-devs/pymc/issues/6818
     os.environ["PYTENSOR_FLAGS"] = (
