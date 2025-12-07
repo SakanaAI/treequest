@@ -4,14 +4,14 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 from treequest.vis.errors import DependencyNotFoundError, RenderError
-from treequest.vis.snapshot import VisualizationSnapshot
-from treequest.vis.renderers.json_yaml import snapshot_to_dict
 from treequest.vis.renderers.color_utils import (
     ROOT_COLOR,
     ColorMap,
     apply_status_color,
     resolve_colormap,
 )
+from treequest.vis.renderers.json_yaml import snapshot_to_dict
+from treequest.vis.snapshot import VisualizationSnapshot
 
 
 def _get_d3_js() -> str:
@@ -71,7 +71,7 @@ def render_html(
         RenderError: If rendering fails
     """
     try:
-        from jinja2 import Template
+        from jinja2 import Template  # type: ignore[import-not-found]
     except ImportError:
         raise DependencyNotFoundError(
             "jinja2 is not installed. Install it with: pip install treequest[vis]"

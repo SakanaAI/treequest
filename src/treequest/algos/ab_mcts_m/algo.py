@@ -19,7 +19,7 @@ from treequest.types import GenerateFnType, StateScoreType, TrialId
 
 StateT = TypeVar("StateT")
 
-_WORKER_ALGO = None
+_WORKER_ALGO: Optional["ABMCTSM"] = None
 
 
 def _worker_init_abmctsm(config: dict, per_worker_cpu_devices: int):
