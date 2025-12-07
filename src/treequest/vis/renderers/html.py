@@ -71,7 +71,7 @@ def render_html(
         RenderError: If rendering fails
     """
     try:
-        from jinja2 import Template  # type: ignore[import-not-found]
+        from jinja2 import Template
     except ImportError:
         raise DependencyNotFoundError(
             "jinja2 is not installed. Install it with: pip install treequest[vis]"
