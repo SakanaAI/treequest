@@ -1,19 +1,26 @@
-from .algos.ab_mcts_m._ab_mcts_m_imports import _import as _ab_mcts_m_import
+from typing import TYPE_CHECKING
 
-if not _ab_mcts_m_import.is_successful():
-    # Create a placeholder that raises an informative error when accessed
-    class _ABMCTSMPlaceholder:
-        def __getattr__(self, name):  # type: ignore
-            _ab_mcts_m_import.check()
-            raise ImportError("ABMCTSM import failed.")
-
-        def __call__(self, *args, **kwargs):  # type: ignore
-            _ab_mcts_m_import.check()
-            raise ImportError("ABMCTSM import failed.")
-
-    ABMCTSM = _ABMCTSMPlaceholder()  # type: ignore
+if TYPE_CHECKING:
+    # Expose the real symbol to static type checkers / IDEs even when optional
+    # dependencies for ABMCTSM are not installed at runtime.
+    from .algos.ab_mcts_m.algo import ABMCTSM
 else:
-    from .algos.ab_mcts_m.algo import ABMCTSM  # type: ignore[assignment]
+    from .algos.ab_mcts_m._ab_mcts_m_imports import _import as _ab_mcts_m_import
+
+    if not _ab_mcts_m_import.is_successful():
+        # Create a placeholder that raises an informative error when accessed
+        class _ABMCTSMPlaceholder:
+            def __getattr__(self, name):  # type: ignore
+                _ab_mcts_m_import.check()
+                raise ImportError("ABMCTSM import failed.")
+
+            def __call__(self, *args, **kwargs):  # type: ignore
+                _ab_mcts_m_import.check()
+                raise ImportError("ABMCTSM import failed.")
+
+        ABMCTSM = _ABMCTSMPlaceholder()  # type: ignore
+    else:
+        from .algos.ab_mcts_m.algo import ABMCTSM  # type: ignore[assignment]
 
 from .algos.ab_mcts_a.algo import ABMCTSA
 from .algos.base import Algorithm
