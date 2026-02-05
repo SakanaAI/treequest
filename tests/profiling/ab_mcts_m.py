@@ -49,7 +49,7 @@ def profile_pymc_mixed_algo_speedup(batch_sizes: Optional[Tuple[int, ...]] = Non
     times = dict()
     for batch_size in batch_sizes:
         start = time.time()
-        algo = ABMCTSM(enable_pruning=True)
+        algo: ABMCTSM = ABMCTSM(enable_pruning=True)
         state = algo.init_tree()
 
         # Create a mapping of model names to generate functions
