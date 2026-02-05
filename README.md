@@ -201,6 +201,7 @@ The variation is not limited to LLM types; you can use different prompts, action
   - Idempotent: calling `tell` twice on the same `trial_id` does not add extra nodes.
   - For queue-based algorithms, over-told Trials beyond possible number of childs from a parent node (e.g., `(# actions)*samples_per_action` for StandardMCTS) become `INVALID` and are not reflected.
 - Scores are expected to be normalized to the `[0, 1]` range.
+  - `ABMCTSM` exposes an internal `_advanced_config` for advanced knobs (e.g., bypassing the runtime check or tuning Bayesian priors). In most cases, the defaults are sufficient; only change it if you understand the impact.
 
 ## Algorithms
 

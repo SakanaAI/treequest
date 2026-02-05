@@ -47,6 +47,37 @@ class ABMCTSMState(Generic[StateT]):
     trial_store: TrialStore[StateT] = field(default_factory=TrialStore[StateT])
 
 
+@dataclass(frozen=True)
+class ABMCTSMAdvancedConfig:
+    """
+    Advanced/experimental ABMCTSM configuration.
+
+    Most users should rely on the defaults.
+    """
+
+    # If True, validate that rewards/scores are in [0, 1].
+    validate_reward_range: bool = True
+
+    # Prior sigmas for the underlying Bayesian model.
+    prior_mu_alpha_sigma: float = 0.2
+    prior_sigma_alpha_sigma: float = 0.2
+    prior_sigma_y_sigma: float = 0.3
+
+    def __post_init__(self) -> None:
+        if self.prior_mu_alpha_sigma <= 0:
+            raise ValueError(
+                f"prior_mu_alpha_sigma must be > 0, got {self.prior_mu_alpha_sigma}"
+            )
+        if self.prior_sigma_alpha_sigma <= 0:
+            raise ValueError(
+                f"prior_sigma_alpha_sigma must be > 0, got {self.prior_sigma_alpha_sigma}"
+            )
+        if self.prior_sigma_y_sigma <= 0:
+            raise ValueError(
+                f"prior_sigma_y_sigma must be > 0, got {self.prior_sigma_y_sigma}"
+            )
+
+
 class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
     """
     Monte Carlo Tree Search algorithm using AB-MCTS-M algorithm.
@@ -63,6 +94,7 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
         min_subtree_size_for_pruning: int = 4,
         same_score_proportion_threshold: float = 0.75,
         max_process_workers: int = os.cpu_count() or 1,
+        _advanced_config: ABMCTSMAdvancedConfig | None = None,
         is_worker: bool = False,
     ):
         """
@@ -79,7 +111,13 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             min_subtree_size_for_pruning: Pruning Config, see PruningConfig class.
             same_score_proportion_threshold: Pruning Config, see PruningConfig class.
             max_process_workers: Maximum number of parallel processes used for running PyMC sampling.
+            _advanced_config: Advanced/experimental configuration. Defaults are recommended.
         """
+        self._advanced_config = (
+            _advanced_config
+            if _advanced_config is not None
+            else ABMCTSMAdvancedConfig()
+        )
         self.enable_pruning = enable_pruning
         self.pruning_config = PruningConfig(
             min_subtree_size_for_pruning=min_subtree_size_for_pruning,
@@ -94,6 +132,9 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             enable_pruning=self.enable_pruning,
             pruning_config=self.pruning_config,
             reward_average_priors=self.reward_average_priors,
+            prior_mu_alpha_sigma=self._advanced_config.prior_mu_alpha_sigma,
+            prior_sigma_alpha_sigma=self._advanced_config.prior_sigma_alpha_sigma,
+            prior_sigma_y_sigma=self._advanced_config.prior_sigma_y_sigma,
             model_selection_strategy=self.model_selection_strategy,
         )
 
@@ -195,6 +236,9 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
     def _get_generation_action(
         self, state: ABMCTSMState[StateT], node: Node[StateT], actions: list[str]
     ) -> str:
+        if len(actions) == 1:
+            return actions[0]
+
         observations = Observation.collect_all_observations_of_descendant(
             node, state.all_observations
         )
@@ -255,6 +299,7 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
             min_subtree_size_for_pruning=self.pruning_config.min_subtree_size_for_pruning,
             same_score_proportion_threshold=self.pruning_config.same_score_proportion_threshold,
             max_process_workers=1,
+            _advanced_config=self._advanced_config,
             is_worker=True,
         )
 
@@ -298,7 +343,10 @@ class ABMCTSM(Algorithm[StateT, ABMCTSMState[StateT]]):
 
         # Add new node to the tree
         new_node = state.tree.add_node(
-            result, parent_node, trial_id=finished_trial.trial_id
+            result,
+            parent_node,
+            trial_id=finished_trial.trial_id,
+            validate_score_range=self._advanced_config.validate_reward_range,
         )
 
         # Record observation

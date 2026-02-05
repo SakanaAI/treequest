@@ -14,6 +14,9 @@ class Node(Generic[StateT]):
     # Scores should be in the range from 0 to 1. For root, we set it to be -1.0 as a placeholder.
     score: float = -1.0
 
+    # If True, validate that score is in [0, 1] for non-root nodes.
+    validate_score_range: bool = True
+
     # Reflects the order of expansion. The root has expand_idx = -1, followed by 0,1,2,...
     expand_idx: int = -1
 
@@ -23,7 +26,9 @@ class Node(Generic[StateT]):
 
     def __post_init__(self) -> None:
         if not self.is_root():
-            if not (self.score <= 1.0 and self.score >= 0.0):
+            if self.validate_score_range and not (
+                self.score <= 1.0 and self.score >= 0.0
+            ):
                 raise RuntimeError(
                     f"The score value should be between 0 and 1, while {self.score} is set."
                 )
@@ -117,11 +122,14 @@ class Tree(Generic[StateT]):
         state_score: StateScoreType[StateT],
         parent: Node[StateT],
         trial_id: Optional[TrialId] = None,
+        *,
+        validate_score_range: bool = True,
     ) -> Node[StateT]:
         state, score = state_score
         node = Node(
             state=state,
             score=score,
+            validate_score_range=validate_score_range,
             parent=parent,
             expand_idx=self.size - 1,
             trial_id=trial_id,

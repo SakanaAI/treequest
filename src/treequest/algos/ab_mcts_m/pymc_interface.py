@@ -148,6 +148,9 @@ class PyMCInterface:
         enable_pruning: bool = True,
         pruning_config: Optional[PruningConfig] = None,
         reward_average_priors: Optional[float | Dict[str, float]] = None,
+        prior_mu_alpha_sigma: float = 0.2,
+        prior_sigma_alpha_sigma: float = 0.2,
+        prior_sigma_y_sigma: float = 0.3,
         model_selection_strategy: str = "multiarm_bandit_thompson",
     ):
         _import.check()
@@ -161,6 +164,22 @@ class PyMCInterface:
         self.reward_average_priors = (
             reward_average_priors if reward_average_priors is not None else dict()
         )
+        if prior_mu_alpha_sigma <= 0:
+            raise ValueError(
+                f"prior_mu_alpha_sigma must be > 0, got {prior_mu_alpha_sigma}"
+            )
+        if prior_sigma_alpha_sigma <= 0:
+            raise ValueError(
+                f"prior_sigma_alpha_sigma must be > 0, got {prior_sigma_alpha_sigma}"
+            )
+        if prior_sigma_y_sigma <= 0:
+            raise ValueError(
+                f"prior_sigma_y_sigma must be > 0, got {prior_sigma_y_sigma}"
+            )
+
+        self.prior_mu_alpha_sigma = prior_mu_alpha_sigma
+        self.prior_sigma_alpha_sigma = prior_sigma_alpha_sigma
+        self.prior_sigma_y_sigma = prior_sigma_y_sigma
 
         # Strategy for model selection:
         # "stack": Perform separate fits for each model (traditional approach)
@@ -491,13 +510,19 @@ class PyMCInterface:
         with pm.Model(coords=coords if not is_prior_model else None) as model:
             # Priors START
             # Overall Goodness of the model itself; mu is set to be 0.5 (50% prob of solving the problem)
-            mu_alpha = pm.Normal("mu_alpha", mu=0.5, sigma=0.2)
+            mu_alpha = pm.Normal(
+                "mu_alpha",
+                mu=self.get_reward_average_prior(action=None),
+                sigma=self.prior_mu_alpha_sigma,
+            )
 
             # expresses the strength of score fluctuation across answers
-            sigma_alpha = pm.HalfNormal("sigma_alpha", sigma=0.2)
+            sigma_alpha = pm.HalfNormal(
+                "sigma_alpha", sigma=self.prior_sigma_alpha_sigma
+            )
 
             # expresses the strength of score fluctuation inside answers
-            sigma_y = pm.HalfNormal("sigma_y", sigma=0.3)
+            sigma_y = pm.HalfNormal("sigma_y", sigma=self.prior_sigma_y_sigma)
             # Priors END
 
             group_dims = "action" if not is_prior_model else None
@@ -543,14 +568,18 @@ class PyMCInterface:
             # Priors START
             # Overall Goodness of the model itself; mu is set to be 0.5 (50% prob of solving the problem)
             mu_alpha = pm.Normal(
-                "mu_alpha", mu=self.get_reward_average_prior(action), sigma=0.2
+                "mu_alpha",
+                mu=self.get_reward_average_prior(action),
+                sigma=self.prior_mu_alpha_sigma,
             )
 
             # expresses the strength of score fluctuation across answers
-            sigma_alpha = pm.HalfNormal("sigma_alpha", sigma=0.2)
+            sigma_alpha = pm.HalfNormal(
+                "sigma_alpha", sigma=self.prior_sigma_alpha_sigma
+            )
 
             # expresses the strength of score fluctuation inside answers
-            sigma_y = pm.HalfNormal("sigma_y", sigma=0.3)
+            sigma_y = pm.HalfNormal("sigma_y", sigma=self.prior_sigma_y_sigma)
             # Priors END
 
             group_dims = "child_idx" if not is_prior_model else None
