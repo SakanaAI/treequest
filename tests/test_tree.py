@@ -32,6 +32,13 @@ def test_node_creation():
     root.children.append(non_root)
     assert root.children == [non_root]
 
+    # Backward compatibility: allow positional initialization without breaking argument order.
+    positional = Node("pos_state", 0.7, 1, root)
+    assert positional.state == "pos_state"
+    assert positional.score == 0.7
+    assert positional.expand_idx == 1
+    assert positional.parent == root
+
 
 def test_node_validation():
     """Test that Node validation works correctly."""

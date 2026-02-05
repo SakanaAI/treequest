@@ -15,7 +15,7 @@ class Node(Generic[StateT]):
     score: float = -1.0
 
     # If True, validate that score is in [0, 1] for non-root nodes.
-    validate_score_range: bool = True
+    validate_score_range: bool = dataclasses.field(default=True, kw_only=True)
 
     # Reflects the order of expansion. The root has expand_idx = -1, followed by 0,1,2,...
     expand_idx: int = -1
