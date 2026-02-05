@@ -1,6 +1,8 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
+
 from treequest import ABMCTSM
 from treequest.visualization import visualize_tree_graphviz
 
@@ -9,6 +11,7 @@ def test_pymc_mixed_algo_basic():
     """Test the basic functionality of the ABMCTSM."""
     # Use a fixed seed for reproducibility
     random.seed(42)
+    np.random.seed(42)
 
     # Define two generate functions with different score distributions
     def generate_fn_high(state: Optional[str]) -> Tuple[str, float]:

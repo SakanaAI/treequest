@@ -3,6 +3,8 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
+
 from treequest.algos.best_first_search import BestFirstSearchAlgo
 from treequest.algos.standard_mcts import StandardMCTS
 from treequest.vis import build_snapshot
@@ -12,6 +14,7 @@ from treequest.vis.errors import InvalidStateError
 def test_build_snapshot_standard_mcts():
     """Test building a snapshot from StandardMCTS state."""
     random.seed(42)
+    np.random.seed(42)
 
     # Define generate functions
     def generate_fn_high(state: Optional[str]) -> Tuple[str, float]:
@@ -78,6 +81,7 @@ def test_build_snapshot_standard_mcts():
 def test_build_snapshot_best_first_search():
     """Test building a snapshot from BestFirstSearch state."""
     random.seed(42)
+    np.random.seed(42)
 
     # Define generate function
     def generate_fn(state: Optional[str]) -> Tuple[str, float]:
@@ -109,6 +113,7 @@ def test_build_snapshot_best_first_search():
 def test_build_snapshot_with_custom_formatter():
     """Test building a snapshot with custom state formatter."""
     random.seed(42)
+    np.random.seed(42)
 
     def generate_fn(state: Optional[str]) -> Tuple[str, float]:
         score = random.uniform(0.0, 1.0)
@@ -162,6 +167,7 @@ def test_build_snapshot_invalid_state():
 def test_snapshot_trial_information():
     """Test that trial information is properly linked in snapshot."""
     random.seed(42)
+    np.random.seed(42)
 
     def generate_fn(state: Optional[str]) -> Tuple[str, float]:
         score = random.uniform(0.0, 1.0)

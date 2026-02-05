@@ -1,6 +1,8 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
+
 from treequest.algos.ab_mcts_a.algo import ABMCTSA, ABMCTSAAlgoState
 from treequest.algos.ab_mcts_a.prob_state import PriorConfig
 from treequest.trial import Trial
@@ -41,6 +43,7 @@ def test_single_step():
     """Test a single step of the ABMCTSA."""
     # Set a fixed seed for reproducibility
     random.seed(42)
+    np.random.seed(42)
 
     # Create a simple generate function
     def generate_fn(state: Optional[str]) -> Tuple[str, float]:

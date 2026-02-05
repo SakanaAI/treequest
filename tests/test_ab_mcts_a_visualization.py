@@ -1,6 +1,8 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
+
 from treequest.algos.ab_mcts_a.algo import ABMCTSA
 from treequest.algos.ab_mcts_a.prob_state import PriorConfig
 from treequest.visualization import visualize_tree_graphviz
@@ -10,6 +12,7 @@ def test_ab_mcts_a_visualization():
     """Test the ABMCTSA algorithm with visualization to understand its tree exploration behavior."""
     # Use a fixed seed for reproducibility
     random.seed(42)
+    np.random.seed(42)
 
     # Define two generate functions with different score distributions
     def generate_fn_high(state: Optional[str]) -> Tuple[str, float]:
@@ -113,6 +116,7 @@ def test_ab_mcts_a_exploration_exploitation():
     """
     # Use a fixed seed for reproducibility
     random.seed(42)
+    np.random.seed(42)
 
     # Define action generation functions
     def generate_action_a(state: Optional[str]) -> Tuple[str, float]:

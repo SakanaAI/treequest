@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Tuple
 
+import numpy as np
 import pytest
 
 from treequest.algos.standard_mcts import StandardMCTS
@@ -19,6 +20,7 @@ from treequest.vis.errors import DependencyNotFoundError, VisualizationError
 def create_test_state():
     """Create a simple test state for rendering tests."""
     random.seed(42)
+    np.random.seed(42)
 
     def generate_fn(state: Optional[str]) -> Tuple[str, float]:
         score = random.uniform(0.0, 1.0)

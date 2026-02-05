@@ -1,6 +1,8 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
+
 from treequest.algos.best_first_search import BestFirstSearchAlgo
 from treequest.visualization import visualize_tree_graphviz
 
@@ -9,6 +11,7 @@ def test_best_first_search_expansion_order():
     """Test that BestFirstSearchAlgo correctly selects highest-scoring nodes for expansion."""
     # Use a fixed seed for reproducibility
     random.seed(42)
+    np.random.seed(42)
 
     # Create generate functions with deterministic scores
     def generate_fn(state: Optional[str]) -> Tuple[str, float]:

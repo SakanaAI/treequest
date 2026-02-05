@@ -1,6 +1,7 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
 import pytest
 
 from treequest.algos.ab_mcts_a.algo import ABMCTSA
@@ -39,6 +40,7 @@ def _reflect_many(algo, state, trials, gen):
 )
 def test_reflection_logic_queue_algorithms(algo_factory, actions):
     random.seed(0)
+    np.random.seed(0)
     algo = algo_factory()
     state = algo.init_tree()
 
@@ -78,6 +80,7 @@ def test_reflection_logic_queue_algorithms(algo_factory, actions):
 
 def test_reflection_logic_tot_bfs():
     random.seed(0)
+    np.random.seed(0)
     algo = TreeOfThoughtsBFSAlgo(breadth_limit=2, size_limit=2)
     state = algo.init_tree()
     actions = ["A", "B"]
@@ -116,6 +119,7 @@ def test_reflection_logic_tot_bfs():
 )
 def test_reflection_logic_nonqueue_algorithms(algo_factory, actions):
     random.seed(0)
+    np.random.seed(0)
     algo = algo_factory()
     state = algo.init_tree()
 

@@ -1,6 +1,7 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
 import pytest
 
 from treequest.algos.ab_mcts_a.algo import ABMCTSA
@@ -46,6 +47,7 @@ def test_interleaved_ask_tell_order_independent(
     This primarily targets algorithms that rely on TrialStoreWithNodeQueue.
     """
     random.seed(1)
+    np.random.seed(1)
     algo = algo_factory()
     state = algo.init_tree()
 

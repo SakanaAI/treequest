@@ -1,6 +1,8 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
+
 from treequest.algos.best_first_search import BestFirstSearchAlgo
 from treequest.algos.standard_mcts import StandardMCTS
 from treequest.algos.tree_of_thought_bfs import TreeOfThoughtsBFSAlgo
@@ -24,6 +26,7 @@ def _tell_and_count(algo, state, trials):
 
 def test_next_nodes_and_invalidation_standard_mcts():
     random.seed(0)
+    np.random.seed(0)
     actions = ["A", "B"]
     algo = StandardMCTS(samples_per_action=2, exploration_weight=1.0)
     state = algo.init_tree()
@@ -77,6 +80,7 @@ def test_next_nodes_and_invalidation_standard_mcts():
 
 def test_next_nodes_and_invalidation_bfs():
     random.seed(0)
+    np.random.seed(0)
     actions = ["A", "B"]
     algo = BestFirstSearchAlgo(num_samples=2)
     state = algo.init_tree()
@@ -116,6 +120,7 @@ def test_next_nodes_and_invalidation_bfs():
 
 def test_next_nodes_tot_bfs_root_case():
     random.seed(0)
+    np.random.seed(0)
     actions = ["A", "B"]
     algo = TreeOfThoughtsBFSAlgo(breadth_limit=2, size_limit=2)
     state = algo.init_tree()

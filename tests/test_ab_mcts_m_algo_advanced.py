@@ -1,6 +1,8 @@
 import random
 from typing import Any, Dict, Optional, Tuple
 
+import numpy as np
+
 from treequest import ABMCTSM
 from treequest.visualization import visualize_tree_graphviz
 
@@ -15,6 +17,7 @@ def test_pymc_mixed_algo_reward_priors():
     """
     # Use a fixed seed for reproducibility
     random.seed(42)
+    np.random.seed(42)
 
     # Define two identical generate functions, so any difference in selection
     # will be due to the priors rather than actual performance
@@ -126,6 +129,7 @@ def test_multiarm_bandit_strategy():
     """
     # Use a fixed seed for reproducibility
     random.seed(42)
+    np.random.seed(42)
 
     # Define generate functions with different performance patterns
     # Simulating a scenario where model performance depends on tree depth

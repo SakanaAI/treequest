@@ -1,6 +1,7 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
 import pytest
 
 from treequest.algos.ab_mcts_a.algo import ABMCTSA
@@ -39,6 +40,7 @@ def _result_from_trial(action: str, parent_state: Optional[str]) -> Tuple[str, f
 )
 def test_ask_batch_core_behaviour(algo_factory, actions, batch_size, expect_length):
     random.seed(0)
+    np.random.seed(0)
     algo = algo_factory()
     state = algo.init_tree()
 

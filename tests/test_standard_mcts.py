@@ -1,6 +1,8 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
+
 from treequest.algos.standard_mcts import StandardMCTS, softmax
 from treequest.visualization import visualize_tree_graphviz
 
@@ -9,6 +11,7 @@ def test_standard_algo_mcts():
     """Test the StandardAlgo MCTS implementation."""
     # Use a fixed seed for reproducibility
     random.seed(42)
+    np.random.seed(42)
 
     # Define two generate functions with different score distributions
     def generate_fn_high(state: Optional[str]) -> Tuple[str, float]:

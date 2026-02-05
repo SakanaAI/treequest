@@ -3,6 +3,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+import numpy as np
+
 from treequest.algos.tree_of_thought_bfs import TreeOfThoughtsBFSAlgo
 from treequest.vis import render
 
@@ -17,6 +19,7 @@ def test_tree_of_thoughts_bfs():
     """Test the TreeOfThoughtsBFSAlgo implementation."""
     # Fix RNG for determinism across environments
     random.seed(42)
+    np.random.seed(42)
 
     # Define a deterministic generate function that increases score with depth
     def generate_fn(state: Optional[State]) -> Tuple[State, float]:

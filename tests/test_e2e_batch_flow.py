@@ -1,6 +1,7 @@
 import random
 from typing import Optional, Tuple
 
+import numpy as np
 import pytest
 
 from treequest.algos.ab_mcts_a.algo import ABMCTSA
@@ -42,6 +43,7 @@ def _gen_b(state: Optional[str]) -> Tuple[str, float]:
 )
 def test_e2e_batch_flow_light(algo_factory, actions, rounds, batch_size):
     random.seed(0)
+    np.random.seed(0)
     algo = algo_factory()
     state = algo.init_tree()
 
