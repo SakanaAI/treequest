@@ -1,4 +1,5 @@
 import random
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
 import numpy as np
@@ -152,3 +153,44 @@ def test_model_selection_strategies():
         assert False, "Should have raised ValueError for invalid strategy"
     except ValueError:
         pass  # Expected behavior
+
+
+def test_dataclass_state_with_array_field_does_not_raise():
+    """
+    Regression test for states containing array/tensor-like fields.
+
+    dataclass-generated __eq__ compares fields with `==`, and objects like numpy arrays
+    (and torch tensors) return non-bool values from equality, which can raise when
+    coerced to bool. ABMCTSA must not rely on such equality when indexing children.
+    """
+
+    @dataclass
+    class ArrayState:
+        x: np.ndarray
+
+    class DeterministicABMCTSA(ABMCTSA):
+        def _get_expand_node_and_action(self, state, actions):  # type: ignore[override]
+            if not state.tree.root.children:
+                node = state.tree.root
+            else:
+                node = state.tree.root.children[0]
+
+            action = self._get_generation_action(state, node, actions)
+            return node, action
+
+    def generate_fn(_state: Optional[ArrayState]) -> Tuple[ArrayState, float]:
+        return ArrayState(x=np.array([1.0, 2.0])), 0.5
+
+    algo = DeterministicABMCTSA(model_selection_strategy="stack")
+    state = algo.init_tree()
+
+    generate_fns = {"a": generate_fn}
+
+    state = algo.step(state, generate_fns)
+    state = algo.step(state, generate_fns)
+
+    assert len(state.tree.get_state_score_pairs()) == 2
+    assert len(state.tree.root.children) == 1
+    assert len(state.tree.root.children[0].children) == 1
+    assert state.tree.root.children[0].parent is state.tree.root
+    assert state.tree.root.children[0].children[0].parent is state.tree.root.children[0]

@@ -13,6 +13,24 @@ from treequest.algos.tree import Node
 T = TypeVar("T")
 
 
+def _child_index_by_identity(parent: Node, child: Node) -> int:
+    """
+    Return the index of `child` in `parent.children` using identity comparison.
+
+    NOTE: Avoid `list.index()` here because it relies on `__eq__`, and user-defined
+    states may include objects (e.g., numpy arrays / torch tensors) whose equality
+    returns non-bool values and can raise when coerced to `bool`.
+    """
+    for i, n in enumerate(parent.children):
+        if n is child:
+            return i
+    raise ValueError(
+        "Child node not found in parent.children by identity. "
+        f"child.expand_idx={getattr(child, 'expand_idx', None)}, "
+        f"parent.expand_idx={getattr(parent, 'expand_idx', None)}"
+    )
+
+
 @dataclasses.dataclass
 class BetaPrior:
     """
@@ -278,18 +296,15 @@ class NodeProbState:
         assert node.parent is not None
 
         # Update for continuing with existing nodes
+        child_idx = _child_index_by_identity(node.parent, node)
         if self.model_selection_strategy.startswith("multiarm_bandit_"):
             # Update the node's probability
-            self.node_probas["shared"][
-                node.parent.children.index(node)
-            ].tell_observation(reward)
+            self.node_probas["shared"][child_idx].tell_observation(reward)
             # For multiarm bandit strategies, update shared CONT distribution
             self.gen_vs_cont_probas["shared"]["CONT"].tell_observation(reward)
         else:
             # Update the node's probability
-            self.node_probas[action][node.parent.children.index(node)].tell_observation(
-                reward
-            )
+            self.node_probas[action][child_idx].tell_observation(reward)
             # For stack strategy, update action-specific CONT distribution
             self.gen_vs_cont_probas[action]["CONT"].tell_observation(reward)
 
@@ -444,14 +459,11 @@ class NodeProbState:
 
         # Initialize the node's probability distribution with its score
         assert node.parent is not None
+        child_idx = _child_index_by_identity(node.parent, node)
         if model_selection_strategy == "stack":
-            self.node_probas[action][node.parent.children.index(node)].tell_observation(
-                node.score
-            )
+            self.node_probas[action][child_idx].tell_observation(node.score)
         else:
-            self.node_probas["shared"][
-                node.parent.children.index(node)
-            ].tell_observation(node.score)
+            self.node_probas["shared"][child_idx].tell_observation(node.score)
 
     def get_action_for_child(self, child: Node) -> str:
         """
