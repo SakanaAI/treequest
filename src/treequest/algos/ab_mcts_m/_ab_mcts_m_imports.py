@@ -1,5 +1,4 @@
 import importlib
-import sys
 from pathlib import Path
 
 from treequest.imports import try_import
@@ -23,11 +22,9 @@ def _import_arviz() -> None:
             lost_race = Path(e.filename or "").name == "daily_warning.tmp"
             if not lost_race or attempt == _ARVIZ_IMPORT_ATTEMPTS:
                 raise
-            # Drop submodules left by the failed attempt (e.g. arviz.preview) so that
-            # the next attempt starts clean. Iterate over a copy because other
-            # threads may import modules meanwhile.
-            for name in [m for m in list(sys.modules) if m.split(".")[0] == "arviz"]:
-                sys.modules.pop(name, None)
+            # Leave sys.modules as it is: Python has already dropped the failed
+            # package, the leftover arviz.preview is safe to reuse, and another
+            # thread may be importing arviz by now.
 
 
 with try_import() as _import:
