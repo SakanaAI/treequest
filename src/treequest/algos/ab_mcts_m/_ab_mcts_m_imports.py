@@ -1,4 +1,31 @@
+import importlib
+from pathlib import Path
+
 from treequest.imports import try_import
+
+_ARVIZ_IMPORT_ATTEMPTS = 3
+
+
+def _import_arviz() -> None:
+    # TODO: Remove this workaround after arviz fixes the race in its daily warning
+    # https://github.com/arviz-devs/arviz/issues/2530
+    # arviz 0.23.3 and 0.23.4 update the warning's stamp file through a fixed
+    # temporary file, so importing arviz from several processes at once can raise
+    # FileNotFoundError. The process that won has already updated the stamp, so
+    # importing again normally succeeds.
+    for attempt in range(1, _ARVIZ_IMPORT_ATTEMPTS + 1):
+        try:
+            importlib.import_module("arviz")
+            return
+        except FileNotFoundError as e:
+            # The process that lost the race fails to rename the temporary file.
+            lost_race = Path(e.filename or "").name == "daily_warning.tmp"
+            if not lost_race or attempt == _ARVIZ_IMPORT_ATTEMPTS:
+                raise
+            # Leave sys.modules as it is: Python has already dropped the failed
+            # package, the leftover arviz.preview is safe to reuse, and another
+            # thread may be importing arviz by now.
+
 
 with try_import() as _import:
     import jax
@@ -14,6 +41,8 @@ with try_import() as _import:
     import numpy as np
     import numpyro  # type: ignore
     import pandas as pd  # type: ignore
+
+    _import_arviz()  # Import arviz before pymc does; see _import_arviz.
     import pymc as pm  # type: ignore
     from pymc.sampling.jax import sample_numpyro_nuts  # type: ignore
     from xarray import DataArray

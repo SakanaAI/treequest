@@ -21,16 +21,19 @@ import treequest as tq
 # Each node is associated with a user-definable `state`.
 State = str
 
+
 # 1. Define a function to be used for node generation.
 def generate(parent_state: State | None) -> tuple[State, float]:
     """Generates new states and scores based on the parent state."""
-    if parent_state is None: # None represents the expansion from root.
+    if parent_state is None:  # None represents the expansion from root.
         new_state = "Initial state"
     else:
         new_state = f"State after {parent_state}"
 
-    score = random.random() # A score for the new state; It should be normalized to the [0, 1] range.
+    # A score for the new state; It should be normalized to the [0, 1] range.
+    score = random.random()
     return new_state, score
+
 
 # 2. Instantiate the algorithm and a search tree object.
 algo = tq.ABMCTSA()
@@ -38,7 +41,7 @@ search_tree = algo.init_tree()
 
 # 3. Run the search with a generation budget (10 in this case).
 for _ in range(10):
-    search_tree = algo.step(search_tree, {'Action A': generate})
+    search_tree = algo.step(search_tree, {"Action A": generate})
 
 # 4. Extract the best score and state.
 best_state, best_node_score = tq.top_k(search_tree, algo, k=1)[0]
@@ -46,7 +49,8 @@ print(f"Best state: {best_state}, Score: {best_node_score}")
 
 # 5. Visualize the search tree.
 output_file_basename = Path("ab_mcts_a_search_tree")
-tq.render(search_tree, output_file_basename, format="html")  # Generates `ab_mcts_a_search_tree.html`
+# Generates `ab_mcts_a_search_tree.html`
+tq.render(search_tree, output_file_basename, format="html")
 ```
 
 Alternatively, you can use an ask–tell interface with batched AB-MCTS sampling steps:
@@ -56,8 +60,9 @@ import treequest as tq
 
 State = str
 
-def generate(parent_state: State | None) -> tuple[State, float]:
-    ...
+
+def generate(parent_state: State | None) -> tuple[State, float]: ...
+
 
 generate_fns = {"Action A": generate}
 actions = list(generate_fns.keys())
@@ -124,10 +129,12 @@ import dataclasses
 
 import treequest as tq
 
+
 @dataclasses.dataclass
 class State:
     llm_answer: str
     score: float
+
 
 def generate(parent_state: State | None) -> tuple[State, float]:
     """Generate a new node by calling an LLM."""
@@ -138,11 +145,13 @@ def generate(parent_state: State | None) -> tuple[State, float]:
 
     return state, state.score
 
+
 def initial_generation() -> State:
     """
     Call LLM API to generate an initial answer.
     """
     ...
+
 
 def refine_answer(llm_answer: str, score: float) -> State:
     """
@@ -154,11 +163,11 @@ def refine_answer(llm_answer: str, score: float) -> State:
 algo = tq.ABMCTSM()
 search_tree = algo.init_tree()
 for i in range(20):
-    search_tree = algo.step(search_tree, {'Action Label': generate})
+    search_tree = algo.step(search_tree, {"Action Label": generate})
     # Logging best node during the search.
     if (i + 1) % 5 == 0:
         best_interim_state, _ = tq.top_k(search_tree, algo, k=1)[0]
-        print(f"Iteration {i+1}: Best state so far = {best_interim_state}")
+        print(f"Iteration {i + 1}: Best state so far = {best_interim_state}")
 
 best_state, _ = tq.top_k(search_tree, algo, k=1)[0]
 print(f"Best Answer: {best_state.llm_answer}, Best Score: {best_state.score}")
@@ -173,6 +182,7 @@ from functools import partial
 
 import treequest as tq
 
+
 def generate(llm_name: str, parent_state=None):
     """
     Call LLM API using litellm, vllm, etc., to generate a new node
@@ -180,9 +190,12 @@ def generate(llm_name: str, parent_state=None):
     ...
     return new_state, new_score
 
+
 llm_names = ["o4-mini", "gemini-2.5-pro"]
 # Create dict of different actions backed by different LLMs.
-generate_fns = {llm_name: partial(generate, llm_name=llm_name) for llm_name in llm_names}
+generate_fns = {
+    llm_name: partial(generate, llm_name=llm_name) for llm_name in llm_names
+}
 
 algo = tq.StandardMCTS()
 search_tree = algo.init_tree()
@@ -250,9 +263,11 @@ from pathlib import Path
 import treequest as tq
 from PIL import Image
 
+
 class State:
     text: str
     image: Image.Image
+
 
 def state_formatter_html(state: State) -> str:
     """Formats the state for HTML visualization."""
@@ -263,13 +278,15 @@ def state_formatter_html(state: State) -> str:
     # In case state.text cannot be trusted, we recommend e.g., html.escape(state.text) to avoid html injection.
     return f'<p>{state.text}</p><br/><img src="data:image/webp;base64,{img_str}" width=100% />'
 
+
 generate_fns = {
     "action_1": ...  # Define your node generation functions (actions) here
 }
 
 algo = tq.ABMCTSA()
 search_tree = algo.init_tree()
-output_dir = Path("search_tree"); output_dir.mkdir(exist_ok=True)
+output_dir = Path("search_tree")
+output_dir.mkdir(exist_ok=True)
 for i in range(10):
     search_tree = algo.step(search_tree, generate_fns)
     # Rendering "latest.html" for checking search progress on the fly
@@ -278,11 +295,16 @@ for i in range(10):
             search_tree,
             output_basename=output_dir / "latest",
             format="html",
-            state_formatter=state_formatter_html, # Use html custom formetter
+            state_formatter=state_formatter_html,  # Use html custom formetter
         )
 
 tq.render(search_tree, output_basename=output_dir / "final", format="pdf")
-tq.render(search_tree, output_basename=output_dir / "final", format="html", state_formatter=state_formatter_html)
+tq.render(
+    search_tree,
+    output_basename=output_dir / "final",
+    format="html",
+    state_formatter=state_formatter_html,
+)
 ```
 
 > **IMPORTANT:** When using HTML format, ensure that the HTML file is securely handled, especially if the state formatter includes raw HTML content. Avoid opening untrusted HTML files in your browser. For example, XSS (cross site scripting) attacks can occur if the state includes malicious HTML/JavaScript code.

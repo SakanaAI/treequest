@@ -1,6 +1,6 @@
 [project]
 name = "treequest"
-version = "0.3.2"
+version = "0.3.3"
 description = "A Tree Search Library with Flexible API for LLM Inference-Time Scaling"
 readme = "README.md"
 authors = [
@@ -44,15 +44,21 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "line-profiler>=4.2.0",
-    "mypy>=1.15.0",
+    # Pin ruff and mypy so that their new releases do not change CI results.
+    # Keep ruff in sync with .pre-commit-config.yaml.
+    "mypy==2.4.0",
     "pre-commit>=4.2.0",
     "pytest>=8.3.4",
     "pytest-xdist>=3.6.1",
-    "ruff>=0.9.9",
+    "ruff==0.17.1",
     "tqdm>=4.64.0",
     "types-tqdm>=4.64.0",
     "types-PyYAML>=6.0.0",
 ]
+
+[tool.ruff.lint]
+# The rules Ruff enabled by default before 0.16, which expanded its default rule set.
+select = ["E4", "E7", "E9", "F"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/treequest"]
