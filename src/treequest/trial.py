@@ -139,6 +139,25 @@ class TrialStoreWithNodeQueue(Generic[StateT]):
             return None
 
         trial = self.running_trials.pop(trial_id)
+
+        # ask can hand out more trials for a node than it has queued expansions, e.g. when
+        # several workers call ask before any of them tells. Once that node's expansions
+        # are used up, a further tell for it is one of those extras, so discard it the same
+        # way _invalidate_trials does instead of letting advance_queue fail on it.
+        if not any(
+            n.expand_idx == trial.node_to_expand
+            for n in self.next_nodes.get(trial.action, [])
+        ):
+            logger.warning(
+                f"The trial with trial_id {trial_id} expands a node that has no queued expansions left. The score will not be reflected in tree search."
+            )
+            self.finished_trials[trial_id] = dataclasses.replace(
+                trial,
+                completed_at=get_current_dt_str(),
+                trial_status="INVALID",
+            )
+            return None
+
         finished_trial = dataclasses.replace(
             trial,
             score=score,

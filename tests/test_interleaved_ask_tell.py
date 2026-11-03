@@ -123,3 +123,46 @@ def test_interleaved_ask_tell_abmctsm():
 
     state, trials3 = algo.ask_batch(state, batch_size=1, actions=actions)
     assert len(trials3) == 1
+
+
+def test_tot_bfs_extra_tells_past_root_are_discarded():
+    """
+    Below the root, ToT-BFS queues several nodes per action. Parallel asks can hand out
+    more trials for the first queued node than it has expansions; the extra tells must be
+    discarded like any other over-ask instead of failing in advance_queue.
+    """
+    algo = TreeOfThoughtsBFSAlgo(breadth_limit=2, size_limit=2)
+    state = algo.init_tree()
+    actions = ["A"]
+
+    # Grow the tree until the deepest level holds two nodes to expand.
+    for _ in range(3):
+        state, trial = algo.ask(state, actions)
+        state = algo.tell(state, trial.trial_id, _gen_a(None))
+
+    # Three workers ask before any of them tells.
+    trials = []
+    for _ in range(3):
+        state, trial = algo.ask(state, actions)
+        trials.append(trial)
+    assert len({t.node_to_expand for t in trials}) == 1
+
+    reflected = 0
+    for t in trials:
+        before = len(state.tree.get_state_score_pairs())
+        parent_state = state.tree.get_node(t.node_to_expand).state
+        state = algo.tell(state, t.trial_id, _gen_a(parent_state))
+        if len(state.tree.get_state_score_pairs()) == before + 1:
+            reflected += 1
+
+    # The node had two queued expansions, so only two of the three tells count.
+    assert reflected == 2
+    store = state.trial_store
+    assert [store.finished_trials[t.trial_id].trial_status for t in trials].count(
+        "INVALID"
+    ) == 1
+    assert len(store.running_trials) == 0
+
+    # The other queued node is still expanded afterwards.
+    state, next_trials = algo.ask_batch(state, batch_size=1, actions=actions)
+    assert next_trials[0].node_to_expand != trials[0].node_to_expand
